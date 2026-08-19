@@ -1,0 +1,10 @@
+{
+  "name": "Что приготовить?",
+  "short_name": "Меню",
+  "description": "Планировщик меню для семьи с ценами Magnum",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffbf5",
+  "theme_color": "#f97316",
+  "lang": "ru"
+}
