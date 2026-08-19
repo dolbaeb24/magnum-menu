@@ -138,7 +138,7 @@ export async function buildShoppingList(
       ingredientName: data.magnumSearch,
       amount: data.amount,
       magnumProduct: product ?? undefined,
-      price: product?.finalPrice ?? 599,
+      price: product?.finalPrice ?? 0,
       checked: false,
     });
   }
