@@ -30,6 +30,8 @@ interface AppState extends WizardState {
   addShoppingItem: (item: ShoppingItem) => void;
   swapMealInPlan: (dayIndex: number, recipeId: string) => void;
   resetWizard: () => void;
+  recentRecipeIds: string[];
+  recentRecipeNames: string[];
 }
 
 const initialWizard: WizardState = {
@@ -47,6 +49,8 @@ export const useAppStore = create<AppState>()(
       mealPlan: null,
       isGenerating: false,
       view: "wizard",
+      recentRecipeIds: [],
+      recentRecipeNames: [],
 
       setStep: (step) => set({ step }),
       setBudget: (budget) => set({ budget }),
@@ -60,7 +64,26 @@ export const useAppStore = create<AppState>()(
         }
       },
       setDiet: (diet) => set({ diet }),
-      setMealPlan: (mealPlan) => set({ mealPlan, view: mealPlan ? "plan" : "wizard" }),
+      setMealPlan: (mealPlan) => {
+        if (!mealPlan) {
+          set({ mealPlan: null, view: "wizard" });
+          return;
+        }
+        const ids = mealPlan.meals.map((m) => m.recipe.id);
+        const names = mealPlan.meals.map((m) => m.recipe.name);
+        const recentRecipeIds = [
+          ...new Set([...ids, ...get().recentRecipeIds]),
+        ].slice(0, 42);
+        const recentRecipeNames = [
+          ...new Set([...names, ...get().recentRecipeNames]),
+        ].slice(0, 42);
+        set({
+          mealPlan,
+          view: "plan",
+          recentRecipeIds,
+          recentRecipeNames,
+        });
+      },
       setIsGenerating: (isGenerating) => set({ isGenerating }),
       setView: (view) => set({ view }),
       toggleShoppingItem: (id) => {
@@ -135,6 +158,8 @@ export const useAppStore = create<AppState>()(
         budget: state.budget,
         categories: state.categories,
         diet: state.diet,
+        recentRecipeIds: state.recentRecipeIds,
+        recentRecipeNames: state.recentRecipeNames,
       }),
     }
   )

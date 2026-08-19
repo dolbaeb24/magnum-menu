@@ -370,7 +370,64 @@ export const INGREDIENT_SEARCH: Record<string, IngredientSearchConfig> = {
     estimatedPrice: 2799,
     displayName: "Свинина ~800 г",
   },
+  овсянка: {
+    queries: ["ОВСЯН", "овсянка"],
+    required: ["ОВСЯН"],
+    estimatedPrice: 449,
+    displayName: "Овсянка 400 г",
+  },
+  йогурт: {
+    queries: ["ЙОГУРТ", "йогурт"],
+    required: ["ЙОГУРТ"],
+    estimatedPrice: 449,
+    displayName: "Йогурт 300 г",
+  },
+  хлеб: {
+    queries: ["ХЛЕБ", "хлеб"],
+    required: ["ХЛЕБ"],
+    exclude: ["СУХАР"],
+    estimatedPrice: 249,
+    displayName: "Хлеб пшеничный",
+  },
+  тунец: {
+    queries: ["ТУНЕЦ", "тунец"],
+    required: ["ТУНЕЦ"],
+    estimatedPrice: 899,
+    displayName: "Тунец консервированный",
+  },
+  кефир: {
+    queries: ["КЕФИР", "кефир"],
+    required: ["КЕФИР"],
+    estimatedPrice: 449,
+    displayName: "Кефир 900 мл",
+  },
+  пшено: {
+    queries: ["ПШЕН", "пшено"],
+    required: ["ПШЕН"],
+    exclude: ["ПШЕНИЧН", "МУКА"],
+    estimatedPrice: 399,
+    displayName: "Пшено 800 г",
+  },
+  сосиски: {
+    queries: ["СОСИСК", "сосиски"],
+    required: ["СОСИСК"],
+    estimatedPrice: 1299,
+    displayName: "Сосиски 400 г",
+  },
 };
+
+export function getAllowedMagnumSearches(): string[] {
+  return Object.keys(INGREDIENT_SEARCH);
+}
+
+export function resolveMagnumSearch(raw: string): string {
+  const key = raw.toLowerCase().trim().replace(/ё/g, "е");
+  if (INGREDIENT_SEARCH[key]) return key;
+
+  const keys = Object.keys(INGREDIENT_SEARCH);
+  const contained = keys.find((k) => key.includes(k) || k.includes(key));
+  return contained ?? key;
+}
 
 export function getIngredientConfig(searchTerm: string): IngredientSearchConfig {
   const key = searchTerm.toLowerCase().trim();

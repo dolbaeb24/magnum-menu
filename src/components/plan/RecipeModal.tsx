@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import type { DayMeal } from "@/lib/types";
 import { MEAL_TYPE_LABELS } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { scaleIngredientAmount } from "@/lib/scale-ingredients";
 import { Clock, Flame, X, Users } from "lucide-react";
 
 interface RecipeModalProps {
@@ -11,9 +13,24 @@ interface RecipeModalProps {
   onClose: () => void;
 }
 
+function peopleLabel(n: number): string {
+  if (n === 1) return "1 человека";
+  if (n >= 2 && n <= 4) return `${n} человека`;
+  return `${n} человек`;
+}
+
+const PEOPLE_OPTIONS = [1, 2, 3, 4, 5] as const;
+
 export function RecipeModal({ meal, onClose }: RecipeModalProps) {
   const { recipe } = meal;
   const typeInfo = MEAL_TYPE_LABELS[meal.mealType];
+  const baseServings = recipe.servings || 5;
+  const [people, setPeople] = useState(baseServings);
+
+  const scaledIngredients = recipe.ingredients.map((ing) => ({
+    ...ing,
+    amount: scaleIngredientAmount(ing.amount, baseServings, people),
+  }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -49,20 +66,46 @@ export function RecipeModal({ meal, onClose }: RecipeModalProps) {
             </Badge>
             <Badge variant="warning">
               <Flame className="w-3 h-3 mr-1" />
-              {recipe.calories} ккал
+              {recipe.calories} ккал / порция
             </Badge>
             <Badge variant="success">
               <Users className="w-3 h-3 mr-1" />
-              {recipe.servings} порций
+              {peopleLabel(people)}
             </Badge>
           </div>
 
           <div>
+            <p className="text-sm font-semibold text-gray-900 mb-2">
+              Порции
+            </p>
+            <div className="flex gap-1.5">
+              {PEOPLE_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setPeople(n)}
+                  className={`flex-1 min-h-[44px] rounded-xl text-sm font-semibold border-2 transition-colors ${
+                    people === n
+                      ? "bg-orange-500 border-orange-500 text-white"
+                      : "bg-white border-gray-200 text-gray-700"
+                  }`}
+                  aria-pressed={people === n}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1.5">
+              Ингредиенты пересчитываются на {peopleLabel(people)}
+            </p>
+          </div>
+
+          <div>
             <h3 className="font-semibold text-gray-900 mb-2 text-sm">
-              🛒 Ингредиенты
+              🛒 Ингредиенты на {peopleLabel(people)}
             </h3>
             <ul className="space-y-1.5">
-              {recipe.ingredients.map((ing, i) => (
+              {scaledIngredients.map((ing, i) => (
                 <li
                   key={i}
                   className="flex justify-between gap-2 text-sm py-1 border-b border-gray-50"

@@ -33,22 +33,34 @@ function getBudgetLimit(
   return parseInt(budget, 10);
 }
 
+function categoryOverlap(recipe: Recipe, categories: MealCategory[]): number {
+  if (categories.length === 0) return 0;
+  return categories.filter((c) => recipe.categories.includes(c)).length;
+}
+
 function scoreRecipe(
   recipe: Recipe,
   categories: MealCategory[],
   usedIds: Set<string>
 ): number {
-  let score = 0;
+  if (usedIds.has(recipe.id)) return -10000;
 
-  if (usedIds.has(recipe.id)) return -1000;
+  let score = Math.random() * 20;
 
-  for (const cat of categories) {
-    if (recipe.categories.includes(cat)) score += 10;
+  if (categories.length > 0) {
+    const overlap = categoryOverlap(recipe, categories);
+    if (overlap === 0) {
+      score -= 80;
+    } else {
+      score += overlap * 30;
+      const extraTags = recipe.categories.filter((c) => !categories.includes(c));
+      score -= extraTags.length * 4;
+    }
   }
 
-  if (recipe.familyFavorite) score += 5;
-
-  score += Math.random() * 5;
+  if (recipe.familyFavorite && categories.includes("family-favorites")) {
+    score += 8;
+  }
 
   return score;
 }
@@ -57,29 +69,36 @@ function pickRecipe(
   categories: MealCategory[],
   diet: DietType,
   mealType: MealType,
-  usedByType: Map<MealType, Set<string>>
+  usedByType: Map<MealType, Set<string>>,
+  excludeIds: Set<string>
 ): Recipe {
   const usedIds = usedByType.get(mealType) ?? new Set<string>();
 
-  const candidates = filterRecipes(categories, diet, mealType).filter(
+  const matching = filterRecipes(categories, diet, mealType).filter(
     (r) => !usedIds.has(r.id)
   );
 
-  if (candidates.length === 0) {
-    const pool = filterRecipes(categories, diet, mealType);
-    if (pool.length > 0) {
-      return pool[Math.floor(Math.random() * pool.length)];
-    }
-    const fallback = filterRecipes([], diet, mealType);
-    return fallback[0] ?? RECIPES[0];
+  const unusedMatching = matching.filter((r) => !excludeIds.has(r.id));
+  let pool = unusedMatching.length > 0 ? unusedMatching : matching;
+
+  if (pool.length === 0) {
+    const anyForType = filterRecipes([], diet, mealType).filter(
+      (r) => !usedIds.has(r.id)
+    );
+    pool = anyForType.length > 0 ? anyForType : filterRecipes([], diet, mealType);
   }
 
-  const scored = candidates
+  if (pool.length === 0) {
+    return RECIPES[Math.floor(Math.random() * RECIPES.length)] ?? RECIPES[0];
+  }
+
+  const scored = shuffle(pool)
     .map((r) => ({ recipe: r, score: scoreRecipe(r, categories, usedIds) }))
     .sort((a, b) => b.score - a.score);
 
-  const topCandidates = scored.slice(0, Math.min(3, scored.length));
-  return topCandidates[Math.floor(Math.random() * topCandidates.length)].recipe;
+  const windowSize = Math.max(2, Math.ceil(scored.length * 0.45));
+  const top = scored.slice(0, windowSize);
+  return top[Math.floor(Math.random() * top.length)].recipe;
 }
 
 export function selectWeeklyMeals(
@@ -89,13 +108,20 @@ export function selectWeeklyMeals(
 ): DayMeal[] {
   const meals: DayMeal[] = [];
   const usedByType = new Map<MealType, Set<string>>();
+  const recent = new Set(excludeIds);
   for (const mt of MEAL_TYPE_ORDER) {
-    usedByType.set(mt, new Set(excludeIds));
+    usedByType.set(mt, new Set());
   }
 
   for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
     for (const mealType of MEAL_TYPE_ORDER) {
-      const recipe = pickRecipe(categories, diet, mealType, usedByType);
+      const recipe = pickRecipe(
+        categories,
+        diet,
+        mealType,
+        usedByType,
+        recent
+      );
       meals.push({
         day: DAYS_OF_WEEK[dayIndex],
         dayIndex,
@@ -152,9 +178,10 @@ export async function generateMealPlan(
   categories: MealCategory[],
   diet: DietType,
   budget: BudgetOption,
-  customBudget?: number
+  customBudget?: number,
+  excludeIds: string[] = []
 ): Promise<MealPlan> {
-  const meals = selectWeeklyMeals(categories, diet);
+  const meals = selectWeeklyMeals(categories, diet, excludeIds);
   const recipes = meals.map((m) => m.recipe);
   const shoppingList = await buildShoppingList(recipes);
   const totalCost = shoppingList.reduce((sum, item) => sum + item.price, 0);
@@ -167,7 +194,8 @@ export async function generateMealPlan(
         [...categories, "quick" as MealCategory],
         diet,
         budget,
-        customBudget
+        customBudget,
+        excludeIds
       );
     }
   }
@@ -201,11 +229,22 @@ export function getAlternativeRecipes(
     (m) => m.dayIndex === dayIndex && m.mealType === mealType
   );
   const currentId = currentMeal?.recipe.id;
-  const usedIds = plan.meals
-    .filter((m) => !(m.dayIndex === dayIndex && m.mealType === mealType))
-    .map((m) => m.recipe.id);
-
-  return filterRecipes(plan.categories, plan.diet, mealType).filter(
-    (r) => r.id !== currentId && !usedIds.includes(r.id)
+  const usedIds = new Set(
+    plan.meals
+      .filter((m) => !(m.dayIndex === dayIndex && m.mealType === mealType))
+      .map((m) => m.recipe.id)
   );
+
+  const pool = filterRecipes([], plan.diet, mealType).filter(
+    (r) => r.id !== currentId && !usedIds.has(r.id)
+  );
+
+  return shuffle(pool)
+    .map((recipe) => ({
+      recipe,
+      score: scoreRecipe(recipe, plan.categories, usedIds),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12)
+    .map((entry) => entry.recipe);
 }

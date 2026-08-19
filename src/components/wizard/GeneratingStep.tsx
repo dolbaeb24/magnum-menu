@@ -14,6 +14,8 @@ export function GeneratingStep() {
     setMealPlan,
     setIsGenerating,
     setStep,
+    recentRecipeIds,
+    recentRecipeNames,
   } = useAppStore();
 
   const [status, setStatus] = useState("Подбираем блюда...");
@@ -37,6 +39,8 @@ export function GeneratingStep() {
             diet,
             budget,
             customBudget: budget === "custom" ? customBudget : undefined,
+            excludeRecipeIds: recentRecipeIds,
+            excludeRecipeNames: recentRecipeNames,
           }),
         });
 
