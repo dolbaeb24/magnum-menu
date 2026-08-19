@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMealPlan } from "@/lib/meal-planner";
 import { generateMealPlanWithAI } from "@/lib/ai-meal-planner";
-import type { MealCategory, DietType, BudgetOption } from "@/lib/types";
+import { RECIPES } from "@/lib/recipes";
+import type { MealCategory, BudgetOption } from "@/lib/types";
 
 export const maxDuration = 60;
 
@@ -10,31 +11,38 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       categories = [],
-      diet = "none",
       budget = "none",
       customBudget,
       excludeRecipeIds = [],
       excludeRecipeNames = [],
       specialDays = [],
+      likedRecipeIds = [],
+      dislikedRecipeIds = [],
     } = body as {
       categories: MealCategory[];
-      diet: DietType;
       budget: BudgetOption;
       customBudget?: number;
       excludeRecipeIds?: string[];
       excludeRecipeNames?: string[];
       specialDays?: number[];
+      likedRecipeIds?: string[];
+      dislikedRecipeIds?: string[];
     };
+
+    const likedNames = likedRecipeIds
+      .map((id) => RECIPES.find((r) => r.id === id)?.name ?? id)
+      .filter(Boolean);
 
     if (process.env.OPENAI_API_KEY) {
       const aiPlan = await generateMealPlanWithAI(
         categories,
-        diet,
+        "none",
         budget,
         customBudget,
         excludeRecipeIds,
         excludeRecipeNames,
-        specialDays
+        specialDays,
+        likedNames
       );
       if (aiPlan) {
         return NextResponse.json({ plan: aiPlan, source: "ai" });
@@ -43,11 +51,13 @@ export async function POST(request: NextRequest) {
 
     const plan = await generateMealPlan(
       categories,
-      diet,
+      "none",
       budget,
       customBudget,
       excludeRecipeIds,
-      specialDays
+      specialDays,
+      likedRecipeIds,
+      dislikedRecipeIds
     );
     return NextResponse.json({ plan, source: "local" });
   } catch (error) {

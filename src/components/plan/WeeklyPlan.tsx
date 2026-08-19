@@ -10,6 +10,8 @@ import { SwapModal } from "./SwapModal";
 import type { DayMeal, MealType } from "@/lib/types";
 import { MEAL_TYPE_LABELS, DAYS_OF_WEEK } from "@/lib/types";
 import { Clock, Flame, RefreshCw, ChevronRight } from "lucide-react";
+import { formatPrice } from "@/lib/utils";
+import { attachMealCosts } from "@/lib/meal-costs";
 
 export function WeeklyPlan() {
   const { mealPlan } = useAppStore();
@@ -21,10 +23,12 @@ export function WeeklyPlan() {
 
   if (!mealPlan) return null;
 
+  const mealsWithCosts = attachMealCosts(mealPlan.meals, mealPlan.shoppingList);
+
   const mealsByDay = DAYS_OF_WEEK.map((day, dayIndex) => ({
     day,
     dayIndex,
-    meals: mealPlan.meals.filter((m) => m.dayIndex === dayIndex),
+    meals: mealsWithCosts.filter((m) => m.dayIndex === dayIndex),
   }));
 
   return (
@@ -75,7 +79,7 @@ export function WeeklyPlan() {
                           <h4 className="font-semibold text-gray-900 text-sm leading-snug break-words">
                             {meal.recipe.name}
                           </h4>
-                          <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-400">
+                          <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-400 flex-wrap">
                             <span className="flex items-center gap-0.5 shrink-0">
                               <Clock className="w-3 h-3" />
                               {meal.recipe.prepTime + meal.recipe.cookTime} мин
@@ -84,6 +88,11 @@ export function WeeklyPlan() {
                               <Flame className="w-3 h-3" />
                               {meal.recipe.calories} ккал
                             </span>
+                            {(meal.estimatedCost ?? 0) > 0 && (
+                              <span className="text-orange-600 font-semibold">
+                                ≈ {formatPrice(meal.estimatedCost ?? 0)}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-col items-center gap-1 shrink-0">

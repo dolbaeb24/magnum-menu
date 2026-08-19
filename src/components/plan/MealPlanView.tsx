@@ -6,7 +6,7 @@ import { ShoppingList } from "@/components/plan/ShoppingList";
 import { Button } from "@/components/ui/Button";
 import { FAMILY } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
-import { RotateCcw, ShoppingBag } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { useState } from "react";
 
 export function MealPlanView() {

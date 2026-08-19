@@ -14,6 +14,9 @@ import { DAYS_OF_WEEK } from "./types";
 import { generateId } from "./utils";
 import { combineAmounts } from "./scale-ingredients";
 import { getCategoriesForDay, normalizeSpecialDays } from "./day-categories";
+import { attachMealCosts } from "./meal-costs";
+
+export { attachMealCosts } from "./meal-costs";
 
 const MEAL_TYPE_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
 
@@ -34,11 +37,20 @@ function categoryOverlap(recipe: Recipe, categories: MealCategory[]): number {
 function scoreRecipe(
   recipe: Recipe,
   categories: MealCategory[],
-  usedIds: Set<string>
+  usedIds: Set<string>,
+  likedIds: Set<string>,
+  dislikedIds: Set<string>
 ): number {
   if (usedIds.has(recipe.id)) return -10000;
 
   let score = Math.random() * 20;
+
+  if (likedIds.has(recipe.id) || likedIds.has(recipe.name.toLowerCase())) {
+    score += 22;
+  }
+  if (dislikedIds.has(recipe.id) || dislikedIds.has(recipe.name.toLowerCase())) {
+    score -= 28;
+  }
 
   if (categories.length > 0) {
     const overlap = categoryOverlap(recipe, categories);
@@ -54,6 +66,9 @@ function scoreRecipe(
   if (recipe.familyFavorite && categories.includes("family-favorites")) {
     score += 8;
   }
+  if (categories.includes("family-favorites") && likedIds.has(recipe.id)) {
+    score += 16;
+  }
 
   return score;
 }
@@ -64,7 +79,9 @@ function pickRecipe(
   diet: DietType,
   mealType: MealType,
   usedByType: Map<MealType, Set<string>>,
-  excludeIds: Set<string>
+  excludeIds: Set<string>,
+  likedIds: Set<string>,
+  dislikedIds: Set<string>
 ): Recipe {
   const usedIds = usedByType.get(mealType) ?? new Set<string>();
 
@@ -94,7 +111,10 @@ function pickRecipe(
   }
 
   const scored = shuffle(pool)
-    .map((r) => ({ recipe: r, score: scoreRecipe(r, categories, usedIds) }))
+    .map((r) => ({
+      recipe: r,
+      score: scoreRecipe(r, categories, usedIds, likedIds, dislikedIds),
+    }))
     .sort((a, b) => b.score - a.score);
 
   const windowSize = Math.max(2, Math.ceil(scored.length * 0.45));
@@ -106,11 +126,25 @@ export function selectWeeklyMeals(
   categories: MealCategory[],
   diet: DietType,
   excludeIds: string[] = [],
-  specialDays: number[] = []
+  specialDays: number[] = [],
+  likedIds: string[] = [],
+  dislikedIds: string[] = []
 ): DayMeal[] {
   const meals: DayMeal[] = [];
   const usedByType = new Map<MealType, Set<string>>();
   const recent = new Set(excludeIds);
+  const liked = new Set(
+    likedIds.flatMap((id) => {
+      const recipe = RECIPES.find((r) => r.id === id);
+      return recipe ? [id, recipe.name.toLowerCase()] : [id];
+    })
+  );
+  const disliked = new Set(
+    dislikedIds.flatMap((id) => {
+      const recipe = RECIPES.find((r) => r.id === id);
+      return recipe ? [id, recipe.name.toLowerCase()] : [id];
+    })
+  );
   for (const mt of MEAL_TYPE_ORDER) {
     usedByType.set(mt, new Set());
   }
@@ -126,7 +160,9 @@ export function selectWeeklyMeals(
         diet,
         mealType,
         usedByType,
-        recent
+        recent,
+        liked,
+        disliked
       );
       meals.push({
         day: DAYS_OF_WEEK[dayIndex],
@@ -176,6 +212,7 @@ export async function buildShoppingList(
       id: generateId(),
       ingredientName: data.name,
       amount: combineAmounts(data.amounts),
+      magnumSearch: data.magnumSearch,
       magnumProduct: product ?? undefined,
       price: product?.finalPrice ?? 0,
       checked: false,
@@ -193,13 +230,23 @@ export async function generateMealPlan(
   budget: BudgetOption,
   customBudget?: number,
   excludeIds: string[] = [],
-  specialDays: number[] = []
+  specialDays: number[] = [],
+  likedIds: string[] = [],
+  dislikedIds: string[] = []
 ): Promise<MealPlan> {
   const days = normalizeSpecialDays(categories, specialDays);
-  const meals = selectWeeklyMeals(categories, diet, excludeIds, days);
+  const meals = selectWeeklyMeals(
+    categories,
+    diet,
+    excludeIds,
+    days,
+    likedIds,
+    dislikedIds
+  );
   const recipes = meals.map((m) => m.recipe);
   const shoppingList = await buildShoppingList(recipes);
   const totalCost = shoppingList.reduce((sum, item) => sum + item.price, 0);
+  const pricedMeals = attachMealCosts(meals, shoppingList);
 
   return {
     id: generateId(),
@@ -209,7 +256,7 @@ export async function generateMealPlan(
     categories,
     specialDays: days,
     diet,
-    meals,
+    meals: pricedMeals,
     shoppingList,
     totalCost,
   };
@@ -260,7 +307,13 @@ export function getAlternativeRecipes(
   return shuffle(list)
     .map((recipe) => ({
       recipe,
-      score: scoreRecipe(recipe, dayCats.categories, usedIds),
+      score: scoreRecipe(
+        recipe,
+        dayCats.categories,
+        usedIds,
+        new Set(),
+        new Set()
+      ),
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 12)

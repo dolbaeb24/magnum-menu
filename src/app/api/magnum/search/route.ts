@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   try {
     const products = await searchMagnumProducts(query, limit);
     return NextResponse.json({ products });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Failed to fetch products from Magnum" },
       { status: 500 }

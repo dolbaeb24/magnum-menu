@@ -3,13 +3,11 @@
 import { useAppStore } from "@/lib/store";
 import { BudgetStep } from "./BudgetStep";
 import { CategoriesStep } from "./CategoriesStep";
-import { DietStep } from "./DietStep";
 import { GeneratingStep } from "./GeneratingStep";
 
 const STEPS = [
   { component: BudgetStep, label: "Бюджет" },
   { component: CategoriesStep, label: "Категории" },
-  { component: DietStep, label: "Диета" },
   { component: GeneratingStep, label: "Готовим" },
 ];
 
@@ -19,9 +17,9 @@ export function Wizard() {
 
   return (
     <div className="space-y-6">
-      {step < 3 && (
+      {step < 2 && (
         <div className="flex items-center justify-center gap-2">
-          {STEPS.slice(0, 3).map((s, i) => (
+          {STEPS.slice(0, 2).map((s, i) => (
             <div key={i} className="flex items-center gap-2">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
@@ -32,7 +30,7 @@ export function Wizard() {
               >
                 {i + 1}
               </div>
-              {i < 2 && (
+              {i < 1 && (
                 <div
                   className={`w-8 h-0.5 ${
                     i < step ? "bg-orange-500" : "bg-gray-200"

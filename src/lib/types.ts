@@ -61,6 +61,7 @@ export interface ShoppingItem {
   id: string;
   ingredientName: string;
   amount: string;
+  magnumSearch?: string;
   magnumProduct?: MagnumProduct;
   price: number;
   checked: boolean;
@@ -72,6 +73,7 @@ export interface DayMeal {
   dayIndex: number;
   mealType: MealType;
   recipe: Recipe;
+  estimatedCost?: number;
 }
 
 export interface MealPlan {
@@ -165,3 +167,32 @@ export const FAMILY = {
   size: 5,
   city: "Алматы",
 };
+
+export const FAMILY_MEMBERS = [
+  { id: "olesya", name: "Олеся", role: "мама", emoji: "👩" },
+  { id: "stanislav", name: "Станислав", role: "папа", emoji: "👨" },
+  { id: "slava", name: "Слава", role: "сын", emoji: "👦" },
+  { id: "danil", name: "Данил", role: "сын", emoji: "👦" },
+  { id: "lera", name: "Лера", role: "дочь", emoji: "👧" },
+] as const;
+
+export type FamilyMemberId = (typeof FAMILY_MEMBERS)[number]["id"];
+
+export interface MemberTastes {
+  liked: string[];
+  disliked: string[];
+}
+
+export interface PlanHistoryItem {
+  id: string;
+  createdAt: string;
+  totalCost: number;
+  categories: MealCategory[];
+  meals: Array<{
+    day: string;
+    dayIndex: number;
+    mealType: MealType;
+    recipeName: string;
+    estimatedCost?: number;
+  }>;
+}

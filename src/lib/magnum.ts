@@ -1,11 +1,27 @@
 import type { MagnumProduct } from "./types";
 import {
   getIngredientConfig,
+  resolveMagnumSearch,
   type IngredientSearchConfig,
 } from "./magnum-ingredients";
+import { isNonFoodProduct } from "./magnum-filters";
 
 const MAGNUM_API = "https://magnum.kz:1337/api";
 const FETCH_TIMEOUT_MS = 4_000;
+
+const GENERIC_TERMS = new Set([
+  "свежий",
+  "свежие",
+  "свежая",
+  "свежее",
+  "свеж",
+  "ягод",
+  "зелень",
+  "специи",
+  "приправа",
+  "молотый",
+  "молотая",
+]);
 
 /** Magnum online catalog rarely has these; skip slow empty searches. */
 const SKIP_API = new Set([
@@ -36,7 +52,13 @@ const SKIP_API = new Set([
   "сахар",
   "соль",
   "овсянка",
-  "пшено",
+  "яблоки",
+  "яблоко",
+  "ягоды",
+  "ягода",
+  "ваниль",
+  "корица",
+  "зелень",
 ]);
 
 const productCache = new Map<string, MagnumProduct>();
@@ -61,13 +83,22 @@ function normalizeName(name: string): string {
 
 function scoreProduct(
   product: MagnumProduct,
-  config: IngredientSearchConfig
+  config: IngredientSearchConfig,
+  searchTerm: string
 ): number {
   const name = normalizeName(product.name);
+  if (isNonFoodProduct(product.name)) return -1;
+
   let score = 0;
 
-  if (config.required?.length) {
-    const hasRequired = config.required.some((term) =>
+  const required = config.required?.length
+    ? config.required
+    : searchTerm.trim().length >= 4
+      ? [searchTerm]
+      : [];
+
+  if (required.length) {
+    const hasRequired = required.some((term) =>
       name.includes(normalizeName(term))
     );
     if (!hasRequired) return -1;
@@ -86,8 +117,9 @@ function scoreProduct(
 
   for (const query of config.queries) {
     const q = normalizeName(query);
-    if (name.includes(q)) score += 10;
-    if (name.startsWith(q)) score += 5;
+    if (q.length < 4) continue;
+    if (name.startsWith(q)) score += 18;
+    else if (name.includes(q)) score += 8;
   }
 
   if (product.finalPrice >= 50 && product.finalPrice <= 5000) score += 2;
@@ -162,10 +194,14 @@ function createEstimatedProduct(
 
 function pickBestMatch(
   products: MagnumProduct[],
-  config: IngredientSearchConfig
+  config: IngredientSearchConfig,
+  searchTerm: string
 ): MagnumProduct | null {
   const scored = products
-    .map((product) => ({ product, score: scoreProduct(product, config) }))
+    .map((product) => ({
+      product,
+      score: scoreProduct(product, config, searchTerm),
+    }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
@@ -178,28 +214,34 @@ function pickBestMatch(
 export async function findBestProduct(
   searchTerm: string
 ): Promise<MagnumProduct | null> {
-  const cacheKey = searchTerm.toLowerCase().trim();
+  const resolved = resolveMagnumSearch(searchTerm);
+  const cacheKey = resolved.toLowerCase().trim();
   const cached = productCache.get(cacheKey);
   if (cached) return cached;
 
-  const config = getIngredientConfig(searchTerm);
+  const config = getIngredientConfig(resolved);
 
-  if (SKIP_API.has(cacheKey)) {
-    const estimated = createEstimatedProduct(searchTerm, config);
+  if (SKIP_API.has(cacheKey) || GENERIC_TERMS.has(cacheKey)) {
+    const estimated = createEstimatedProduct(resolved, config);
     productCache.set(cacheKey, estimated);
     return estimated;
   }
 
-  const queries = [...new Set(config.queries.map((q) => q.trim()).filter(Boolean))].slice(
-    0,
-    2
-  );
+  const queries = [
+    ...new Set(config.queries.map((q) => q.trim()).filter((q) => q.length >= 4)),
+  ].slice(0, 2);
+
+  if (queries.length === 0) {
+    const estimated = createEstimatedProduct(resolved, config);
+    productCache.set(cacheKey, estimated);
+    return estimated;
+  }
 
   const batches = await Promise.all(
     queries.map((query) => fetchMagnumProducts(query, 8))
   );
-  const match = pickBestMatch(batches.flat(), config);
-  const product = match ?? createEstimatedProduct(searchTerm, config);
+  const match = pickBestMatch(batches.flat(), config, resolved);
+  const product = match ?? createEstimatedProduct(resolved, config);
   productCache.set(cacheKey, product);
   return product;
 }

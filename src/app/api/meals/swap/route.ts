@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAlternativeRecipes, regenerateShoppingList } from "@/lib/meal-planner";
+import { attachMealCosts } from "@/lib/meal-costs";
 import { getRecipeById } from "@/lib/recipes";
 import type { MealPlan, MealType, Recipe } from "@/lib/types";
 
@@ -28,12 +29,13 @@ export async function POST(request: NextRequest) {
 
       const updatedPlan: MealPlan = { ...plan, meals: updatedMeals };
       const shoppingList = await regenerateShoppingList(updatedPlan);
+      const meals = attachMealCosts(updatedMeals, shoppingList);
       const totalCost = shoppingList
         .filter((i) => !i.checked)
         .reduce((sum, item) => sum + item.price, 0);
 
       return NextResponse.json({
-        plan: { ...updatedPlan, shoppingList, totalCost },
+        plan: { ...updatedPlan, meals, shoppingList, totalCost },
       });
     }
 

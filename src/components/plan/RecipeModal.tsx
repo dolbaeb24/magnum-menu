@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import type { DayMeal } from "@/lib/types";
 import { MEAL_TYPE_LABELS } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { scaleIngredientAmount } from "@/lib/scale-ingredients";
+import { useAppStore } from "@/lib/store";
+import { formatPrice } from "@/lib/utils";
 import { Clock, Flame, X, Users } from "lucide-react";
 
 interface RecipeModalProps {
@@ -25,12 +26,17 @@ export function RecipeModal({ meal, onClose }: RecipeModalProps) {
   const { recipe } = meal;
   const typeInfo = MEAL_TYPE_LABELS[meal.mealType];
   const baseServings = recipe.servings || 5;
-  const [people, setPeople] = useState(baseServings);
+  const { servingsByRecipeId, setRecipeServings } = useAppStore();
+  const people = servingsByRecipeId[recipe.id] ?? baseServings;
 
   const scaledIngredients = recipe.ingredients.map((ing) => ({
     ...ing,
     amount: scaleIngredientAmount(ing.amount, baseServings, people),
   }));
+  const scaledCost =
+    meal.estimatedCost && meal.estimatedCost > 0
+      ? Math.round((meal.estimatedCost * people) / baseServings)
+      : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -72,6 +78,9 @@ export function RecipeModal({ meal, onClose }: RecipeModalProps) {
               <Users className="w-3 h-3 mr-1" />
               {peopleLabel(people)}
             </Badge>
+            {scaledCost > 0 && (
+              <Badge variant="warning">{formatPrice(scaledCost)} ≈</Badge>
+            )}
           </div>
 
           <div>
@@ -83,7 +92,7 @@ export function RecipeModal({ meal, onClose }: RecipeModalProps) {
                 <button
                   key={n}
                   type="button"
-                  onClick={() => setPeople(n)}
+                  onClick={() => setRecipeServings(recipe.id, n)}
                   className={`flex-1 min-h-[44px] rounded-xl text-sm font-semibold border-2 transition-colors ${
                     people === n
                       ? "bg-orange-500 border-orange-500 text-white"

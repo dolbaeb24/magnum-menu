@@ -40,7 +40,8 @@ export const INGREDIENT_SEARCH: Record<string, IngredientSearchConfig> = {
   яйца: {
     queries: ["ЯЙЦО", "яйца"],
     required: ["ЯЙЦ"],
-    exclude: ["ЯЙЦОК", "ПАСХАЛ"],
+    preferPrefix: "ЯЙЦО",
+    exclude: ["ЯЙЦОК", "ПАСХАЛ", "30ШТ", "30 ШТ"],
     estimatedPrice: 779,
     displayName: "Яйца отборные 10 шт",
   },
@@ -414,6 +415,49 @@ export const INGREDIENT_SEARCH: Record<string, IngredientSearchConfig> = {
     estimatedPrice: 1299,
     displayName: "Сосиски 400 г",
   },
+  яблоки: {
+    queries: ["ЯБЛОК", "яблоки"],
+    required: ["ЯБЛОК"],
+    exclude: ["ПЮРЕ", "СОК ", "ОСВЕЖ", "АГУША"],
+    estimatedPrice: 799,
+    displayName: "Яблоки ~1 кг",
+  },
+  ягоды: {
+    queries: [],
+    required: ["ЯГОД"],
+    exclude: ["ОСВЕЖ", "GLADE", "ПЮРЕ"],
+    estimatedPrice: 1299,
+    displayName: "Ягоды свежие ~300 г",
+  },
+  ваниль: {
+    queries: [],
+    required: ["ВАНИЛ"],
+    exclude: ["МОРОЖ", "ПЛОМБИР"],
+    estimatedPrice: 399,
+    displayName: "Ванилин 10 г",
+  },
+  корица: {
+    queries: [],
+    required: ["КОРИЦ"],
+    estimatedPrice: 399,
+    displayName: "Корица молотая",
+  },
+  зелень: {
+    queries: [],
+    required: ["УКРОП", "ПЕТРУШ", "КИНЗ"],
+    estimatedPrice: 299,
+    displayName: "Зелень свежая",
+  },
+};
+
+const SEARCH_ALIASES: Record<string, string> = {
+  яйцо: "яйца",
+  яблоко: "яблоки",
+  ягод: "ягоды",
+  ягода: "ягоды",
+  чеснока: "чеснок",
+  ванилин: "ваниль",
+  ванильный: "ваниль",
 };
 
 export function getAllowedMagnumSearches(): string[] {
@@ -423,17 +467,19 @@ export function getAllowedMagnumSearches(): string[] {
 export function resolveMagnumSearch(raw: string): string {
   const key = raw.toLowerCase().trim().replace(/ё/g, "е");
   if (INGREDIENT_SEARCH[key]) return key;
+  if (SEARCH_ALIASES[key]) return SEARCH_ALIASES[key];
+  if (key.length < 4) return key;
 
-  const keys = Object.keys(INGREDIENT_SEARCH);
-  const contained = keys.find((k) => key.includes(k) || k.includes(key));
-  return contained ?? key;
+  const keys = Object.keys(INGREDIENT_SEARCH).sort((a, b) => b.length - a.length);
+  const contained = keys.find((k) => k.length >= 4 && key.includes(k));
+  return contained ?? SEARCH_ALIASES[key] ?? key;
 }
 
 export function getIngredientConfig(searchTerm: string): IngredientSearchConfig {
-  const key = searchTerm.toLowerCase().trim();
+  const key = resolveMagnumSearch(searchTerm);
   return (
     INGREDIENT_SEARCH[key] ?? {
-      queries: [searchTerm, searchTerm.toUpperCase()],
+      queries: key.length >= 4 ? [key] : [],
       estimatedPrice: 499,
       displayName: searchTerm,
     }

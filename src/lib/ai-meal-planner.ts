@@ -11,7 +11,7 @@ import type {
 } from "./types";
 import { CATEGORY_LABELS, DAYS_OF_WEEK } from "./types";
 import { RECIPES, getRecipeById } from "./recipes";
-import { buildShoppingList } from "./meal-planner";
+import { buildShoppingList, attachMealCosts } from "./meal-planner";
 import { generateId } from "./utils";
 import {
   getAllowedMagnumSearches,
@@ -178,7 +178,8 @@ export async function generateMealPlanWithAI(
   customBudget?: number,
   excludeIds: string[] = [],
   excludeNames: string[] = [],
-  specialDays: number[] = []
+  specialDays: number[] = [],
+  likedNames: string[] = []
 ): Promise<MealPlan | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
@@ -242,6 +243,7 @@ ${categoryGuide(categories.filter((c) => c !== "indulge" || hasIndulge))}
 4. Можно взять из каталога не больше 7 блюд из 21, и только если они идеально подходят. Остальные — новые.
 5. Не повторяй название блюда в течение недели (завтраки тоже желательно разные).
 6. Не используй эти недавние блюда: ${excludeNames.slice(0, 30).join(", ") || "—"}
+6b. Любимые блюда семьи (ставь чаще): ${likedNames.slice(0, 20).join(", ") || "—"}
 7. magnumSearch ингредиента — СТРОГО одно значение из списка: ${allowedSearches.join(", ")}
 8. Порции в ингредиентах — на 5 человек.
 9. Только валидный JSON.
@@ -345,6 +347,7 @@ ${JSON.stringify(catalog)}
 
     const shoppingList = await buildShoppingList(meals.map((m) => m.recipe));
     const totalCost = shoppingList.reduce((sum, item) => sum + item.price, 0);
+    const pricedMeals = attachMealCosts(meals, shoppingList);
 
     return {
       id: generateId(),
@@ -354,7 +357,7 @@ ${JSON.stringify(catalog)}
       categories,
       specialDays: days,
       diet,
-      meals,
+      meals: pricedMeals,
       shoppingList,
       totalCost,
     };

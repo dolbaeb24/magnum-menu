@@ -50,7 +50,7 @@ export function ShoppingList() {
       </div>
 
       <p className="text-xs text-gray-500">
-        Отметьте, что уже есть дома
+        Кружок слева — нажмите, если продукт уже есть дома
       </p>
 
       <div className="space-y-2 w-full min-w-0">
@@ -61,8 +61,8 @@ export function ShoppingList() {
           >
             <button
               onClick={() => toggleShoppingItem(item.id)}
-              className="flex-shrink-0 w-11 h-11 rounded-lg border-2 border-gray-300 active:border-orange-400 flex items-center justify-center"
-              aria-label="Отметить как купленное"
+              className="flex-shrink-0 w-7 h-7 rounded-full border-2 border-gray-300 active:border-orange-400 flex items-center justify-center mt-0.5"
+              aria-label="Отметить: уже есть дома"
             />
 
             <div className="flex-1 min-w-0 overflow-hidden">
@@ -99,7 +99,8 @@ export function ShoppingList() {
             >
               <button
                 onClick={() => toggleShoppingItem(item.id)}
-                className="flex-shrink-0 w-11 h-11 rounded-lg bg-emerald-500 text-white flex items-center justify-center"
+                className="flex-shrink-0 w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center"
+                aria-label="Вернуть в список"
               >
                 <Check className="w-4 h-4" />
               </button>

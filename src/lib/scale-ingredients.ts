@@ -39,12 +39,20 @@ export function scaleIngredientAmount(
 }
 
 function canonicalUnit(unit: string): string {
-  const u = unit.toLowerCase().replace(/ё/g, "е").trim();
+  const u = unit
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (/^(кг|килограмм)/.test(u)) return "кг";
   if (/^(г|гр|грамм)/.test(u)) return "г";
   if (/^(л|литр)/.test(u) && !/^л[а-я]/.test(u)) return "л";
   if (/^мл/.test(u)) return "мл";
-  return unit.trim();
+  if (/^шт/.test(u)) return "шт";
+  if (/^ст\s*л/.test(u)) return "ст.л.";
+  if (/^ч\s*л/.test(u)) return "ч.л.";
+  return u;
 }
 
 function parseAmountParts(

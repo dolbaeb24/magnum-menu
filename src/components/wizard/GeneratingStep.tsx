@@ -10,13 +10,14 @@ export function GeneratingStep() {
     budget,
     customBudget,
     categories,
-    diet,
     setMealPlan,
     setIsGenerating,
     setStep,
     recentRecipeIds,
     recentRecipeNames,
     specialDays,
+    likedRecipeIds,
+    dislikedRecipeIds,
   } = useAppStore();
 
   const [status, setStatus] = useState("Подбираем блюда...");
@@ -33,12 +34,14 @@ export function GeneratingStep() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             categories,
-            diet,
+            diet: "none",
             budget,
             customBudget: budget === "custom" ? customBudget : undefined,
             excludeRecipeIds: recentRecipeIds,
             excludeRecipeNames: recentRecipeNames,
             specialDays,
+            likedRecipeIds: likedRecipeIds(),
+            dislikedRecipeIds: dislikedRecipeIds(),
           }),
         });
 
@@ -47,9 +50,9 @@ export function GeneratingStep() {
         setStatus("Составляем список покупок...");
         const data = await response.json();
         setMealPlan(data.plan as MealPlan);
-      } catch (err) {
+      } catch {
         setError("Не удалось составить меню. Попробуйте ещё раз.");
-        setTimeout(() => setStep(2), 2000);
+        setTimeout(() => setStep(1), 2000);
       } finally {
         setIsGenerating(false);
       }
