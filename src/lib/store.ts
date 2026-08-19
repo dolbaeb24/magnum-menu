@@ -9,6 +9,8 @@ import type {
   MealCategory,
   DietType,
   ShoppingItem,
+  MealType,
+  Recipe,
 } from "./types";
 
 interface AppState extends WizardState {
@@ -21,6 +23,7 @@ interface AppState extends WizardState {
   setCustomBudget: (amount: number) => void;
   toggleCategory: (category: MealCategory) => void;
   setDiet: (diet: DietType) => void;
+  toggleSpecialDay: (dayIndex: number) => void;
   setMealPlan: (plan: MealPlan | null) => void;
   setIsGenerating: (val: boolean) => void;
   setView: (view: "wizard" | "plan") => void;
@@ -28,7 +31,7 @@ interface AppState extends WizardState {
   updateShoppingItem: (id: string, updates: Partial<ShoppingItem>) => void;
   removeShoppingItem: (id: string) => void;
   addShoppingItem: (item: ShoppingItem) => void;
-  swapMealInPlan: (dayIndex: number, recipeId: string) => void;
+  swapMealInPlan: (dayIndex: number, mealType: MealType, recipe: Recipe) => void;
   resetWizard: () => void;
   recentRecipeIds: string[];
   recentRecipeNames: string[];
@@ -39,6 +42,7 @@ const initialWizard: WizardState = {
   budget: "none",
   customBudget: 90000,
   categories: [],
+  specialDays: [],
   diet: "none",
 };
 
@@ -58,10 +62,27 @@ export const useAppStore = create<AppState>()(
       toggleCategory: (category) => {
         const current = get().categories;
         if (current.includes(category)) {
-          set({ categories: current.filter((c) => c !== category) });
+          const next = current.filter((c) => c !== category);
+          set({
+            categories: next,
+            specialDays: category === "indulge" ? [] : get().specialDays,
+          });
         } else if (current.length < 3) {
-          set({ categories: [...current, category] });
+          set({
+            categories: [...current, category],
+            specialDays:
+              category === "indulge" && get().specialDays.length === 0
+                ? [5]
+                : get().specialDays,
+          });
         }
+      },
+      toggleSpecialDay: (dayIndex) => {
+        const current = get().specialDays;
+        const next = current.includes(dayIndex)
+          ? current.filter((d) => d !== dayIndex)
+          : [...current, dayIndex].sort((a, b) => a - b);
+        set({ specialDays: next.length > 0 ? next : [dayIndex] });
       },
       setDiet: (diet) => set({ diet }),
       setMealPlan: (mealPlan) => {
@@ -130,15 +151,15 @@ export const useAppStore = create<AppState>()(
           },
         });
       },
-      swapMealInPlan: (dayIndex, recipeId) => {
+      swapMealInPlan: (dayIndex, mealType, recipe) => {
         const plan = get().mealPlan;
         if (!plan) return;
         set({
           mealPlan: {
             ...plan,
             meals: plan.meals.map((m) =>
-              m.dayIndex === dayIndex
-                ? { ...m, recipe: { ...m.recipe, id: recipeId } }
+              m.dayIndex === dayIndex && m.mealType === mealType
+                ? { ...m, recipe }
                 : m
             ),
           },
@@ -157,6 +178,7 @@ export const useAppStore = create<AppState>()(
         mealPlan: state.mealPlan,
         budget: state.budget,
         categories: state.categories,
+        specialDays: state.specialDays,
         diet: state.diet,
         recentRecipeIds: state.recentRecipeIds,
         recentRecipeNames: state.recentRecipeNames,

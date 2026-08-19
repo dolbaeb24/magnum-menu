@@ -9,9 +9,11 @@ import type {
   MealType,
 } from "./types";
 import { RECIPES, filterRecipes } from "./recipes";
-import { findBestProduct } from "./magnum";
+import { findBestProduct, mapPool } from "./magnum";
 import { DAYS_OF_WEEK } from "./types";
 import { generateId } from "./utils";
+import { combineAmounts } from "./scale-ingredients";
+import { getCategoriesForDay, normalizeSpecialDays } from "./day-categories";
 
 const MEAL_TYPE_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
 
@@ -22,15 +24,6 @@ function shuffle<T>(array: T[]): T[] {
     [result[i], result[j]] = [result[j], result[i]];
   }
   return result;
-}
-
-function getBudgetLimit(
-  budget: BudgetOption,
-  customBudget?: number
-): number | null {
-  if (budget === "none") return null;
-  if (budget === "custom") return customBudget ?? null;
-  return parseInt(budget, 10);
 }
 
 function categoryOverlap(recipe: Recipe, categories: MealCategory[]): number {
@@ -67,6 +60,7 @@ function scoreRecipe(
 
 function pickRecipe(
   categories: MealCategory[],
+  excludeCategories: MealCategory[],
   diet: DietType,
   mealType: MealType,
   usedByType: Map<MealType, Set<string>>,
@@ -74,18 +68,25 @@ function pickRecipe(
 ): Recipe {
   const usedIds = usedByType.get(mealType) ?? new Set<string>();
 
-  const matching = filterRecipes(categories, diet, mealType).filter(
-    (r) => !usedIds.has(r.id)
-  );
+  const matching = filterRecipes(categories, diet, mealType).filter((r) => {
+    if (usedIds.has(r.id)) return false;
+    if (excludeCategories.some((c) => r.categories.includes(c))) return false;
+    return true;
+  });
 
   const unusedMatching = matching.filter((r) => !excludeIds.has(r.id));
   let pool = unusedMatching.length > 0 ? unusedMatching : matching;
 
   if (pool.length === 0) {
-    const anyForType = filterRecipes([], diet, mealType).filter(
-      (r) => !usedIds.has(r.id)
-    );
-    pool = anyForType.length > 0 ? anyForType : filterRecipes([], diet, mealType);
+    const anyForType = filterRecipes([], diet, mealType).filter((r) => {
+      if (usedIds.has(r.id)) return false;
+      if (excludeCategories.some((c) => r.categories.includes(c))) return false;
+      return true;
+    });
+    pool =
+      anyForType.length > 0
+        ? anyForType
+        : filterRecipes([], diet, mealType).filter((r) => !usedIds.has(r.id));
   }
 
   if (pool.length === 0) {
@@ -104,7 +105,8 @@ function pickRecipe(
 export function selectWeeklyMeals(
   categories: MealCategory[],
   diet: DietType,
-  excludeIds: string[] = []
+  excludeIds: string[] = [],
+  specialDays: number[] = []
 ): DayMeal[] {
   const meals: DayMeal[] = [];
   const usedByType = new Map<MealType, Set<string>>();
@@ -113,10 +115,14 @@ export function selectWeeklyMeals(
     usedByType.set(mt, new Set());
   }
 
+  const days = normalizeSpecialDays(categories, specialDays);
+
   for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+    const dayCats = getCategoriesForDay(categories, days, dayIndex);
     for (const mealType of MEAL_TYPE_ORDER) {
       const recipe = pickRecipe(
-        categories,
+        dayCats.categories,
+        dayCats.exclude,
         diet,
         mealType,
         usedByType,
@@ -140,37 +146,44 @@ export async function buildShoppingList(
 ): Promise<ShoppingItem[]> {
   const ingredientMap = new Map<
     string,
-    { amount: string; magnumSearch: string }
+    { name: string; amounts: string[]; magnumSearch: string }
   >();
 
   for (const recipe of recipes) {
     for (const ing of recipe.ingredients) {
       const key = ing.magnumSearch.toLowerCase();
-      if (!ingredientMap.has(key)) {
+      const existing = ingredientMap.get(key);
+      if (!existing) {
         ingredientMap.set(key, {
-          amount: ing.amount,
+          name: ing.name,
+          amounts: [ing.amount],
           magnumSearch: ing.magnumSearch,
         });
+      } else {
+        existing.amounts.push(ing.amount);
       }
     }
   }
 
-  const shoppingItems: ShoppingItem[] = [];
+  const entries = [...ingredientMap.values()];
+  const products = await mapPool(entries, 8, (data) =>
+    findBestProduct(data.magnumSearch)
+  );
 
-  for (const [, data] of ingredientMap) {
-    const product = await findBestProduct(data.magnumSearch);
-    shoppingItems.push({
+  const shoppingItems: ShoppingItem[] = entries.map((data, index) => {
+    const product = products[index];
+    return {
       id: generateId(),
-      ingredientName: data.magnumSearch,
-      amount: data.amount,
+      ingredientName: data.name,
+      amount: combineAmounts(data.amounts),
       magnumProduct: product ?? undefined,
       price: product?.finalPrice ?? 0,
       checked: false,
-    });
-  }
+    };
+  });
 
   return shoppingItems.sort((a, b) =>
-    a.ingredientName.localeCompare(b.ingredientName)
+    a.ingredientName.localeCompare(b.ingredientName, "ru")
   );
 }
 
@@ -179,26 +192,14 @@ export async function generateMealPlan(
   diet: DietType,
   budget: BudgetOption,
   customBudget?: number,
-  excludeIds: string[] = []
+  excludeIds: string[] = [],
+  specialDays: number[] = []
 ): Promise<MealPlan> {
-  const meals = selectWeeklyMeals(categories, diet, excludeIds);
+  const days = normalizeSpecialDays(categories, specialDays);
+  const meals = selectWeeklyMeals(categories, diet, excludeIds, days);
   const recipes = meals.map((m) => m.recipe);
   const shoppingList = await buildShoppingList(recipes);
   const totalCost = shoppingList.reduce((sum, item) => sum + item.price, 0);
-
-  const budgetLimit = getBudgetLimit(budget, customBudget);
-  if (budgetLimit && totalCost > budgetLimit) {
-    const hasQuick = categories.includes("quick");
-    if (!hasQuick) {
-      return generateMealPlan(
-        [...categories, "quick" as MealCategory],
-        diet,
-        budget,
-        customBudget,
-        excludeIds
-      );
-    }
-  }
 
   return {
     id: generateId(),
@@ -206,6 +207,7 @@ export async function generateMealPlan(
     budget,
     customBudget,
     categories,
+    specialDays: days,
     diet,
     meals,
     shoppingList,
@@ -235,14 +237,30 @@ export function getAlternativeRecipes(
       .map((m) => m.recipe.id)
   );
 
-  const pool = filterRecipes([], plan.diet, mealType).filter(
+  const dayCats = getCategoriesForDay(
+    plan.categories,
+    plan.specialDays ?? [],
+    dayIndex
+  );
+
+  const pool = filterRecipes(dayCats.categories, plan.diet, mealType).filter(
+    (r) => {
+      if (r.id === currentId || usedIds.has(r.id)) return false;
+      if (dayCats.exclude.some((c) => r.categories.includes(c))) return false;
+      return true;
+    }
+  );
+
+  const fallback = filterRecipes([], plan.diet, mealType).filter(
     (r) => r.id !== currentId && !usedIds.has(r.id)
   );
 
-  return shuffle(pool)
+  const list = pool.length > 0 ? pool : fallback;
+
+  return shuffle(list)
     .map((recipe) => ({
       recipe,
-      score: scoreRecipe(recipe, plan.categories, usedIds),
+      score: scoreRecipe(recipe, dayCats.categories, usedIds),
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 12)

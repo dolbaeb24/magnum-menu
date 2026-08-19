@@ -5,7 +5,41 @@ import {
 } from "./magnum-ingredients";
 
 const MAGNUM_API = "https://magnum.kz:1337/api";
-const FETCH_TIMEOUT_MS = 12_000;
+const FETCH_TIMEOUT_MS = 4_000;
+
+/** Magnum online catalog rarely has these; skip slow empty searches. */
+const SKIP_API = new Set([
+  "свекла",
+  "картофель",
+  "морковь",
+  "свинина",
+  "курица",
+  "куриное филе",
+  "говяжий фарш",
+  "свиной фарш",
+  "куриный фарш",
+  "чеснок",
+  "капуста",
+  "помидоры",
+  "салат",
+  "сухари",
+  "перловка",
+  "манка",
+  "изюм",
+  "шампиньоны",
+  "спагетти",
+  "судак",
+  "кабачки",
+  "баклажаны",
+  "зира",
+  "укроп",
+  "сахар",
+  "соль",
+  "овсянка",
+  "пшено",
+]);
+
+const productCache = new Map<string, MagnumProduct>();
 
 interface MagnumApiProduct {
   id: number;
@@ -56,7 +90,6 @@ function scoreProduct(
     if (name.startsWith(q)) score += 5;
   }
 
-  // Prefer mid-range prices over suspiciously cheap wrong matches
   if (product.finalPrice >= 50 && product.finalPrice <= 5000) score += 2;
 
   return score;
@@ -123,6 +156,7 @@ function createEstimatedProduct(
     startPrice: price,
     finalPrice: price,
     discount: 0,
+    estimated: true,
   };
 }
 
@@ -144,18 +178,48 @@ function pickBestMatch(
 export async function findBestProduct(
   searchTerm: string
 ): Promise<MagnumProduct | null> {
+  const cacheKey = searchTerm.toLowerCase().trim();
+  const cached = productCache.get(cacheKey);
+  if (cached) return cached;
+
   const config = getIngredientConfig(searchTerm);
-  const tried = new Set<string>();
 
-  for (const query of config.queries) {
-    const normalizedQuery = query.trim();
-    if (!normalizedQuery || tried.has(normalizedQuery.toLowerCase())) continue;
-    tried.add(normalizedQuery.toLowerCase());
-
-    const products = await fetchMagnumProducts(normalizedQuery, 12);
-    const match = pickBestMatch(products, config);
-    if (match) return match;
+  if (SKIP_API.has(cacheKey)) {
+    const estimated = createEstimatedProduct(searchTerm, config);
+    productCache.set(cacheKey, estimated);
+    return estimated;
   }
 
-  return createEstimatedProduct(searchTerm, config);
+  const queries = [...new Set(config.queries.map((q) => q.trim()).filter(Boolean))].slice(
+    0,
+    2
+  );
+
+  const batches = await Promise.all(
+    queries.map((query) => fetchMagnumProducts(query, 8))
+  );
+  const match = pickBestMatch(batches.flat(), config);
+  const product = match ?? createEstimatedProduct(searchTerm, config);
+  productCache.set(cacheKey, product);
+  return product;
+}
+
+export async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await mapper(items[index]);
+    }
+  }
+
+  const poolSize = Math.min(concurrency, items.length) || 1;
+  await Promise.all(Array.from({ length: poolSize }, () => worker()));
+  return results;
 }

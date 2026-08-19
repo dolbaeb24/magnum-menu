@@ -17,6 +17,10 @@ import {
   getAllowedMagnumSearches,
   resolveMagnumSearch,
 } from "./magnum-ingredients";
+import {
+  getCategoriesForDay,
+  normalizeSpecialDays,
+} from "./day-categories";
 
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner"];
 
@@ -106,6 +110,7 @@ function recipeFromAi(
 function pickFallbackRecipe(
   mealType: MealType,
   categories: MealCategory[],
+  excludeCategories: MealCategory[],
   diet: DietType,
   usedIds: Set<string>,
   excludeIds: Set<string>
@@ -114,6 +119,7 @@ function pickFallbackRecipe(
     if (!r.mealTypes.includes(mealType)) return false;
     if (diet !== "none" && !r.diets.includes(diet)) return false;
     if (usedIds.has(r.id)) return false;
+    if (excludeCategories.some((c) => r.categories.includes(c))) return false;
     if (categories.length > 0 && !categories.some((c) => r.categories.includes(c))) {
       return false;
     }
@@ -128,7 +134,10 @@ function pickFallbackRecipe(
   }
 
   const anyType = RECIPES.filter(
-    (r) => r.mealTypes.includes(mealType) && !usedIds.has(r.id)
+    (r) =>
+      r.mealTypes.includes(mealType) &&
+      !usedIds.has(r.id) &&
+      !excludeCategories.some((c) => r.categories.includes(c))
   );
   return anyType[Math.floor(Math.random() * anyType.length)] ?? RECIPES[0];
 }
@@ -168,7 +177,8 @@ export async function generateMealPlanWithAI(
   budget: BudgetOption,
   customBudget?: number,
   excludeIds: string[] = [],
-  excludeNames: string[] = []
+  excludeNames: string[] = [],
+  specialDays: number[] = []
 ): Promise<MealPlan | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
@@ -177,6 +187,10 @@ export async function generateMealPlanWithAI(
     const openai = new OpenAI({ apiKey });
     const allowedSearches = getAllowedMagnumSearches();
     const excludeSet = new Set(excludeIds);
+
+    const days = normalizeSpecialDays(categories, specialDays);
+    const specialDayNames = days.map((d) => DAYS_OF_WEEK[d]).join(", ");
+    const hasIndulge = categories.includes("indulge");
 
     const catalog = RECIPES.filter(
       (r) =>
@@ -207,10 +221,15 @@ export async function generateMealPlanWithAI(
 
     const prompt = `Составь НОВОЕ меню на 7 дней для русской семьи из 5 человек в Алматы (Олеся, Станислав, Слава, Данил, Лера). Квартира, плита и духовка, БЕЗ гриля и шашлыка.
 
-Выбранные категории (обязательно соблюдай, это главное): ${categoryText}
+Выбранные категории: ${categoryText}
+${
+  hasIndulge
+    ? `«Обожраться» ТОЛЬКО в эти дни: ${specialDayNames} (dayIndex ${days.join(", ")}). В остальные дни НЕ ставь пиццу, плов, бефстроганов, пельмени и прочие тяжёлые блюда.`
+    : "Категории действуют всю неделю."
+}
 
 Как готовить под категории:
-${categoryGuide(categories)}
+${categoryGuide(categories.filter((c) => c !== "indulge" || hasIndulge))}
 
 Диета: ${diet === "none" ? "без ограничений" : diet}
 Бюджет на неделю: ${budgetText}
@@ -218,7 +237,7 @@ ${categoryGuide(categories)}
 
 Жёсткие правила:
 1. 21 блюдо: 7 дней × breakfast, lunch, dinner.
-2. Каждое блюдо ДОЛЖНО соответствовать выбранным категориям. Если выбрали «здоровое» — не ставь пельмени/пиццу/бефстроганов. Если «быстрые» — не ставь борщ на 2 часа. Если «обожраться» — не ставь салат из капусты.
+2. На обычных днях блюда должны соответствовать категориям без «обожраться». На особых днях — сытные «обожраться».
 3. ПРИДУМАЙ оригинальные домашние рецепты. Не копируй одно и то же каждую неделю.
 4. Можно взять из каталога не больше 7 блюд из 21, и только если они идеально подходят. Остальные — новые.
 5. Не повторяй название блюда в течение недели (завтраки тоже желательно разные).
@@ -261,6 +280,7 @@ ${JSON.stringify(catalog)}
     const usedNames = new Set<string>();
 
     for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+      const dayCats = getCategoriesForDay(categories, days, dayIndex);
       for (const mealType of MEAL_TYPES) {
         const pick = payloads.find(
           (s) =>
@@ -271,11 +291,15 @@ ${JSON.stringify(catalog)}
 
         if (pick?.useCatalogId) {
           const catalogRecipe = getRecipeById(pick.useCatalogId);
+          const excluded = dayCats.exclude.some((c) =>
+            catalogRecipe?.categories.includes(c)
+          );
           if (
             catalogRecipe &&
             catalogRecipe.mealTypes.includes(mealType) &&
             !usedIds.has(catalogRecipe.id) &&
-            !excludeSet.has(catalogRecipe.id)
+            !excludeSet.has(catalogRecipe.id) &&
+            !excluded
           ) {
             recipe = catalogRecipe;
           }
@@ -285,7 +309,7 @@ ${JSON.stringify(catalog)}
           const generated = recipeFromAi(
             pick.recipe,
             mealType,
-            categories,
+            dayCats.categories,
             diet
           );
           if (
@@ -299,7 +323,8 @@ ${JSON.stringify(catalog)}
         if (!recipe) {
           recipe = pickFallbackRecipe(
             mealType,
-            categories,
+            dayCats.categories,
+            dayCats.exclude,
             diet,
             usedIds,
             excludeSet
@@ -327,6 +352,7 @@ ${JSON.stringify(catalog)}
       budget,
       customBudget,
       categories,
+      specialDays: days,
       diet,
       meals,
       shoppingList,

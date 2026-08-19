@@ -20,6 +20,13 @@ export function MealPlanView() {
     .reduce((sum, item) => sum + item.price, 0);
 
   const daysCount = new Set(mealPlan.meals.map((m) => m.dayIndex)).size;
+  const budgetLimit =
+    mealPlan.budget === "none"
+      ? null
+      : mealPlan.budget === "custom"
+        ? mealPlan.customBudget ?? null
+        : parseInt(mealPlan.budget, 10);
+  const overBudget = budgetLimit !== null && uncheckedCost > budgetLimit;
 
   return (
     <div className="space-y-4 w-full min-w-0">
@@ -46,6 +53,11 @@ export function MealPlanView() {
             <p className="text-lg font-bold">{mealPlan.meals.length}</p>
           </div>
         </div>
+        {overBudget && (
+          <p className="text-xs text-orange-50 mt-2 bg-black/10 rounded-lg px-2 py-1.5">
+            Сумма покупок выше выбранного бюджета ({formatPrice(budgetLimit ?? 0)}). Можно заменить блюда или убрать продукты, которые уже есть дома.
+          </p>
+        )}
       </div>
 
       <div className="flex gap-1.5 bg-gray-100 rounded-xl p-1">

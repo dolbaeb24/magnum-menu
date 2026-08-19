@@ -66,7 +66,7 @@ export function ShoppingList() {
             />
 
             <div className="flex-1 min-w-0 overflow-hidden">
-              <p className="font-medium text-gray-900 text-sm capitalize break-words line-clamp-2">
+              <p className="font-medium text-gray-900 text-sm break-words line-clamp-2">
                 {item.magnumProduct?.name ?? item.ingredientName}
               </p>
               <p className="text-[11px] text-gray-400">{item.amount}</p>
@@ -103,7 +103,7 @@ export function ShoppingList() {
               >
                 <Check className="w-4 h-4" />
               </button>
-              <p className="flex-1 line-through text-gray-500 text-sm capitalize break-words min-w-0">
+              <p className="flex-1 line-through text-gray-500 text-sm break-words min-w-0">
                 {item.magnumProduct?.name ?? item.ingredientName}
               </p>
             </div>

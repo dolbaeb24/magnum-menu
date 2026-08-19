@@ -4,7 +4,6 @@ import { useAppStore } from "@/lib/store";
 import { BUDGET_LABELS, FAMILY, type BudgetOption } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { formatPrice } from "@/lib/utils";
 import { Wallet, Infinity } from "lucide-react";
 
 const BUDGET_OPTIONS: BudgetOption[] = [
@@ -46,12 +45,8 @@ export function BudgetStep() {
               <Infinity className="w-5 h-5 mx-auto mb-1 text-orange-500" />
             ) : option === "custom" ? (
               <span className="text-xl mb-1 block">✏️</span>
-            ) : (
-              <span className="text-base font-bold text-orange-600 block mb-0.5 leading-tight">
-                {formatPrice(parseInt(option))}
-              </span>
-            )}
-            <span className="text-xs text-gray-600 leading-tight">
+            ) : null}
+            <span className={`leading-tight ${option !== "none" && option !== "custom" ? "text-base font-bold text-orange-600" : "text-xs text-gray-600"}`}>
               {BUDGET_LABELS[option]}
             </span>
           </Card>

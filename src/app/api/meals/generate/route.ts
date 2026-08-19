@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
       customBudget,
       excludeRecipeIds = [],
       excludeRecipeNames = [],
+      specialDays = [],
     } = body as {
       categories: MealCategory[];
       diet: DietType;
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
       customBudget?: number;
       excludeRecipeIds?: string[];
       excludeRecipeNames?: string[];
+      specialDays?: number[];
     };
 
     if (process.env.OPENAI_API_KEY) {
@@ -31,7 +33,8 @@ export async function POST(request: NextRequest) {
         budget,
         customBudget,
         excludeRecipeIds,
-        excludeRecipeNames
+        excludeRecipeNames,
+        specialDays
       );
       if (aiPlan) {
         return NextResponse.json({ plan: aiPlan, source: "ai" });
@@ -43,7 +46,8 @@ export async function POST(request: NextRequest) {
       diet,
       budget,
       customBudget,
-      excludeRecipeIds
+      excludeRecipeIds,
+      specialDays
     );
     return NextResponse.json({ plan, source: "local" });
   } catch (error) {

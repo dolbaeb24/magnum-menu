@@ -38,8 +38,14 @@ export function WeeklyPlan() {
         <div className="space-y-4 w-full min-w-0">
           {mealsByDay.map(({ day, dayIndex, meals }) => (
             <div key={dayIndex} className="w-full min-w-0">
-              <h3 className="text-sm font-semibold text-orange-600 mb-2 px-1">
+              <h3 className="text-sm font-semibold text-orange-600 mb-2 px-1 flex items-center gap-2">
                 {day}
+                {(mealPlan.specialDays ?? []).includes(dayIndex) &&
+                  mealPlan.categories.includes("indulge") && (
+                    <span className="text-[10px] font-semibold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
+                      🍕 особый день
+                    </span>
+                  )}
               </h3>
               <div className="space-y-2 w-full min-w-0">
                 {meals.map((meal) => {

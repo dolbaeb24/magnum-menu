@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { Wizard } from "@/components/wizard/Wizard";
 import { MealPlanView } from "@/components/plan/MealPlanView";
@@ -8,12 +8,19 @@ import { FAMILY } from "@/lib/types";
 
 export default function Home() {
   const { view, mealPlan, setView } = useAppStore();
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (mealPlan && view === "wizard") {
+    const unsub = useAppStore.persist.onFinishHydration(() => setHydrated(true));
+    if (useAppStore.persist.hasHydrated()) setHydrated(true);
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    if (hydrated && mealPlan && view === "wizard") {
       setView("plan");
     }
-  }, [mealPlan, view, setView]);
+  }, [hydrated, mealPlan, view, setView]);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-orange-50 via-white to-amber-50 overflow-x-hidden w-full">
@@ -34,7 +41,13 @@ export default function Home() {
       </header>
 
       <div className="max-w-lg mx-auto px-3 py-4 w-full min-w-0">
-        {view === "plan" && mealPlan ? <MealPlanView /> : <Wizard />}
+        {!hydrated ? (
+          <div className="py-16 text-center text-sm text-gray-400">Загрузка…</div>
+        ) : view === "plan" && mealPlan ? (
+          <MealPlanView />
+        ) : (
+          <Wizard />
+        )}
       </div>
 
       <footer className="max-w-lg mx-auto px-3 py-6 text-center text-[11px] text-gray-400 safe-bottom">

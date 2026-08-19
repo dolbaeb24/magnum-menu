@@ -1,7 +1,7 @@
 "use client";
 
 import { useAppStore } from "@/lib/store";
-import { CATEGORY_LABELS, type MealCategory } from "@/lib/types";
+import { CATEGORY_LABELS, DAYS_SHORT, type MealCategory } from "@/lib/types";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Sparkles } from "lucide-react";
@@ -9,7 +9,15 @@ import { Sparkles } from "lucide-react";
 const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as MealCategory[];
 
 export function CategoriesStep() {
-  const { categories, toggleCategory, setStep } = useAppStore();
+  const {
+    categories,
+    specialDays,
+    toggleCategory,
+    toggleSpecialDay,
+    setStep,
+  } = useAppStore();
+
+  const showDayPicker = categories.includes("indulge");
 
   return (
     <div className="space-y-5 w-full min-w-0">
@@ -50,6 +58,36 @@ export function CategoriesStep() {
           );
         })}
       </div>
+
+      {showDayPicker && (
+        <div className="bg-orange-50 border border-orange-100 rounded-2xl p-3 space-y-2">
+          <p className="text-sm font-semibold text-gray-900">
+            🍕 В какие дни обожраться?
+          </p>
+          <p className="text-xs text-gray-500">
+            Не всю неделю — только отмеченные дни. В остальные будет обычное меню.
+          </p>
+          <div className="grid grid-cols-7 gap-1">
+            {DAYS_SHORT.map((label, dayIndex) => {
+              const selected = specialDays.includes(dayIndex);
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => toggleSpecialDay(dayIndex)}
+                  className={`min-h-[44px] rounded-xl text-xs font-semibold border-2 ${
+                    selected
+                      ? "bg-orange-500 border-orange-500 text-white"
+                      : "bg-white border-gray-200 text-gray-600"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2 pt-2">
         <Button variant="ghost" className="min-h-[48px]" onClick={() => setStep(0)}>

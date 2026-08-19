@@ -54,6 +54,7 @@ export interface MagnumProduct {
   startPrice: number;
   finalPrice: number;
   discount: number;
+  estimated?: boolean;
 }
 
 export interface ShoppingItem {
@@ -79,6 +80,7 @@ export interface MealPlan {
   budget: BudgetOption;
   customBudget?: number;
   categories: MealCategory[];
+  specialDays: number[];
   diet: DietType;
   meals: DayMeal[];
   shoppingList: ShoppingItem[];
@@ -90,6 +92,7 @@ export interface WizardState {
   budget: BudgetOption;
   customBudget: number;
   categories: MealCategory[];
+  specialDays: number[];
   diet: DietType;
 }
 
@@ -114,7 +117,7 @@ export const CATEGORY_LABELS: Record<
     description: "Проверенные рецепты",
   },
   healthy: { label: "Здоровая пища", emoji: "🌿", description: "Полезно и вкусно" },
-  indulge: { label: "Обожраться", emoji: "🍕", description: "Для особых дней" },
+  indulge: { label: "Обожраться", emoji: "🍕", description: "Только в выбранные дни" },
   russian: {
     label: "Русская кухня",
     emoji: "🥟",
@@ -150,6 +153,8 @@ export const DAYS_OF_WEEK = [
   "Суббота",
   "Воскресенье",
 ];
+
+export const DAYS_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 export const FAMILY = {
   mom: "Олеся",

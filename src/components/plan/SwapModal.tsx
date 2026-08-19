@@ -39,9 +39,9 @@ export function SwapModal({ dayIndex, mealType, onClose }: SwapModalProps) {
     loadAlternatives();
   }, [dayIndex, mealType, mealPlan]);
 
-  async function handleSwap(recipeId: string) {
+  async function handleSwap(recipe: Recipe) {
     if (!mealPlan) return;
-    setSwapping(recipeId);
+    setSwapping(recipe.id);
     try {
       const response = await fetch("/api/meals/swap", {
         method: "POST",
@@ -50,7 +50,8 @@ export function SwapModal({ dayIndex, mealType, onClose }: SwapModalProps) {
           plan: mealPlan,
           dayIndex,
           mealType,
-          newRecipeId: recipeId,
+          newRecipeId: recipe.id,
+          newRecipe: recipe,
         }),
       });
       const data = await response.json();
@@ -107,7 +108,7 @@ export function SwapModal({ dayIndex, mealType, onClose }: SwapModalProps) {
                 key={recipe.id}
                 hoverable
                 className="cursor-pointer !p-3"
-                onClick={() => handleSwap(recipe.id)}
+                onClick={() => handleSwap(recipe)}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">

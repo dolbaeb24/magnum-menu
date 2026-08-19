@@ -1,27 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAlternativeRecipes, regenerateShoppingList } from "@/lib/meal-planner";
 import { getRecipeById } from "@/lib/recipes";
-import type { MealPlan, MealType } from "@/lib/types";
+import type { MealPlan, MealType, Recipe } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { plan, dayIndex, mealType, newRecipeId } = body as {
+    const { plan, dayIndex, mealType, newRecipeId, newRecipe } = body as {
       plan: MealPlan;
       dayIndex: number;
       mealType: MealType;
       newRecipeId?: string;
+      newRecipe?: Recipe;
     };
 
-    if (newRecipeId) {
-      const newRecipe = getRecipeById(newRecipeId);
-      if (!newRecipe) {
+    if (newRecipeId || newRecipe) {
+      const recipe = newRecipe ?? (newRecipeId ? getRecipeById(newRecipeId) : undefined);
+      if (!recipe) {
         return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
       }
 
       const updatedMeals = plan.meals.map((m) =>
         m.dayIndex === dayIndex && m.mealType === mealType
-          ? { ...m, recipe: newRecipe }
+          ? { ...m, recipe }
           : m
       );
 

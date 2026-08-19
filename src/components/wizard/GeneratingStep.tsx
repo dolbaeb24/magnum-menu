@@ -16,6 +16,7 @@ export function GeneratingStep() {
     setStep,
     recentRecipeIds,
     recentRecipeNames,
+    specialDays,
   } = useAppStore();
 
   const [status, setStatus] = useState("Подбираем блюда...");
@@ -25,11 +26,7 @@ export function GeneratingStep() {
     async function generate() {
       setIsGenerating(true);
       try {
-        setStatus("ИИ подбирает меню для семьи...");
-        await new Promise((r) => setTimeout(r, 800));
-
-        setStatus("Проверяем цены в Magnum Алматы...");
-        await new Promise((r) => setTimeout(r, 600));
+        setStatus("Составляем меню и ищем цены в Magnum...");
 
         const response = await fetch("/api/meals/generate", {
           method: "POST",
@@ -41,6 +38,7 @@ export function GeneratingStep() {
             customBudget: budget === "custom" ? customBudget : undefined,
             excludeRecipeIds: recentRecipeIds,
             excludeRecipeNames: recentRecipeNames,
+            specialDays,
           }),
         });
 
