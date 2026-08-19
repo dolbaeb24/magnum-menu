@@ -16,7 +16,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border-2 bg-white p-5 transition-all duration-200",
+        "rounded-2xl border-2 bg-white p-4 sm:p-5 transition-all duration-200",
         hoverable && "cursor-pointer hover:shadow-lg hover:-translate-y-0.5",
         selected
           ? "border-orange-400 bg-orange-50 shadow-lg shadow-orange-500/10"

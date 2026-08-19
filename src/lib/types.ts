@@ -4,8 +4,10 @@ export type MealCategory =
   | "family-favorites"
   | "healthy"
   | "indulge"
-  | "kazakh"
+  | "russian"
   | "kids";
+
+export type MealType = "breakfast" | "lunch" | "dinner";
 
 export type DietType =
   | "none"
@@ -16,11 +18,11 @@ export type DietType =
 
 export type BudgetOption =
   | "none"
-  | "15000"
-  | "25000"
-  | "35000"
-  | "50000"
-  | "70000"
+  | "45000"
+  | "75000"
+  | "105000"
+  | "150000"
+  | "210000"
   | "custom";
 
 export interface Ingredient {
@@ -34,6 +36,7 @@ export interface Recipe {
   name: string;
   description: string;
   categories: MealCategory[];
+  mealTypes: MealType[];
   diets: DietType[];
   prepTime: number;
   cookTime: number;
@@ -66,6 +69,7 @@ export interface ShoppingItem {
 export interface DayMeal {
   day: string;
   dayIndex: number;
+  mealType: MealType;
   recipe: Recipe;
 }
 
@@ -89,13 +93,33 @@ export interface WizardState {
   diet: DietType;
 }
 
-export const CATEGORY_LABELS: Record<MealCategory, { label: string; emoji: string; description: string }> = {
+export const MEAL_TYPE_LABELS: Record<
+  MealType,
+  { label: string; emoji: string; time: string }
+> = {
+  breakfast: { label: "Завтрак", emoji: "🌅", time: "08:00" },
+  lunch: { label: "Обед", emoji: "☀️", time: "13:00" },
+  dinner: { label: "Ужин", emoji: "🌙", time: "19:00" },
+};
+
+export const CATEGORY_LABELS: Record<
+  MealCategory,
+  { label: string; emoji: string; description: string }
+> = {
   quick: { label: "Быстрые блюда", emoji: "⚡", description: "До 30 минут" },
   "low-cal": { label: "Низкие калории", emoji: "🥗", description: "Лёгкие блюда" },
-  "family-favorites": { label: "Любимые семьи", emoji: "❤️", description: "Проверенные рецепты" },
+  "family-favorites": {
+    label: "Любимые семьи",
+    emoji: "❤️",
+    description: "Проверенные рецепты",
+  },
   healthy: { label: "Здоровая пища", emoji: "🌿", description: "Полезно и вкусно" },
   indulge: { label: "Обожраться", emoji: "🍕", description: "Для особых дней" },
-  kazakh: { label: "Казахская кухня", emoji: "🇰🇿", description: "Национальные блюда" },
+  russian: {
+    label: "Русская кухня",
+    emoji: "🥟",
+    description: "Домашние рецепты",
+  },
   kids: { label: "Детские блюда", emoji: "👶", description: "Для Данила и Леры" },
 };
 
@@ -109,11 +133,11 @@ export const DIET_LABELS: Record<DietType, { label: string; description: string 
 
 export const BUDGET_LABELS: Record<BudgetOption, string> = {
   none: "Без бюджета",
-  "15000": "15 000 ₸",
-  "25000": "25 000 ₸",
-  "35000": "35 000 ₸",
-  "50000": "50 000 ₸",
-  "70000": "70 000 ₸",
+  "45000": "45 000 ₸",
+  "75000": "75 000 ₸",
+  "105000": "105 000 ₸",
+  "150000": "150 000 ₸",
+  "210000": "210 000 ₸",
   custom: "Своя сумма",
 };
 

@@ -35,7 +35,7 @@ interface AppState extends WizardState {
 const initialWizard: WizardState = {
   step: 0,
   budget: "none",
-  customBudget: 30000,
+  customBudget: 90000,
   categories: [],
   diet: "none",
 };

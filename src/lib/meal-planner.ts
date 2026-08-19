@@ -6,11 +6,14 @@ import type {
   DayMeal,
   ShoppingItem,
   MealPlan,
+  MealType,
 } from "./types";
 import { RECIPES, filterRecipes } from "./recipes";
 import { findBestProduct } from "./magnum";
 import { DAYS_OF_WEEK } from "./types";
 import { generateId } from "./utils";
+
+const MEAL_TYPE_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
 
 function shuffle<T>(array: T[]): T[] {
   const result = [...array];
@@ -50,50 +53,60 @@ function scoreRecipe(
   return score;
 }
 
+function pickRecipe(
+  categories: MealCategory[],
+  diet: DietType,
+  mealType: MealType,
+  usedIds: Set<string>
+): Recipe {
+  const candidates = filterRecipes(categories, diet, mealType).filter(
+    (r) => !usedIds.has(r.id)
+  );
+
+  if (candidates.length === 0) {
+    const fallback = filterRecipes([], diet, mealType).find(
+      (r) => !usedIds.has(r.id)
+    );
+    if (fallback) return fallback;
+    const any = RECIPES.find((r) => r.mealTypes.includes(mealType));
+    if (any) return any;
+    return RECIPES[0];
+  }
+
+  const scored = candidates
+    .map((r) => ({ recipe: r, score: scoreRecipe(r, categories, usedIds) }))
+    .sort((a, b) => b.score - a.score);
+
+  const topCandidates = scored.slice(0, Math.min(3, scored.length));
+  return topCandidates[Math.floor(Math.random() * topCandidates.length)].recipe;
+}
+
 export function selectWeeklyMeals(
   categories: MealCategory[],
   diet: DietType,
   excludeIds: string[] = []
-): Recipe[] {
-  const filtered = filterRecipes(categories, diet);
-  const available = filtered.filter((r) => !excludeIds.includes(r.id));
-
-  if (available.length === 0) {
-    return shuffle(RECIPES.filter((r) => !excludeIds.includes(r.id))).slice(0, 7);
-  }
-
-  const selected: Recipe[] = [];
+): DayMeal[] {
+  const meals: DayMeal[] = [];
   const usedIds = new Set<string>(excludeIds);
 
-  for (let day = 0; day < 7; day++) {
-    const candidates = available.filter((r) => !usedIds.has(r.id));
-    if (candidates.length === 0) {
-      const fallback = RECIPES.find((r) => !usedIds.has(r.id));
-      if (fallback) {
-        selected.push(fallback);
-        usedIds.add(fallback.id);
-      }
-      continue;
+  for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+    for (const mealType of MEAL_TYPE_ORDER) {
+      const recipe = pickRecipe(categories, diet, mealType, usedIds);
+      meals.push({
+        day: DAYS_OF_WEEK[dayIndex],
+        dayIndex,
+        mealType,
+        recipe,
+      });
+      usedIds.add(recipe.id);
     }
-
-    const scored = candidates
-      .map((r) => ({ recipe: r, score: scoreRecipe(r, categories, usedIds) }))
-      .sort((a, b) => b.score - a.score);
-
-    const topCandidates = scored.slice(0, Math.min(3, scored.length));
-    const pick =
-      topCandidates[Math.floor(Math.random() * topCandidates.length)].recipe;
-
-    selected.push(pick);
-    usedIds.add(pick.id);
   }
 
-  return selected;
+  return meals;
 }
 
 export async function buildShoppingList(
-  recipes: Recipe[],
-  familySize: number = 5
+  recipes: Recipe[]
 ): Promise<ShoppingItem[]> {
   const ingredientMap = new Map<
     string,
@@ -114,7 +127,7 @@ export async function buildShoppingList(
 
   const shoppingItems: ShoppingItem[] = [];
 
-  for (const [key, data] of ingredientMap) {
+  for (const [, data] of ingredientMap) {
     const product = await findBestProduct(data.magnumSearch);
     shoppingItems.push({
       id: generateId(),
@@ -126,7 +139,9 @@ export async function buildShoppingList(
     });
   }
 
-  return shoppingItems.sort((a, b) => a.ingredientName.localeCompare(b.ingredientName));
+  return shoppingItems.sort((a, b) =>
+    a.ingredientName.localeCompare(b.ingredientName)
+  );
 }
 
 export async function generateMealPlan(
@@ -135,16 +150,15 @@ export async function generateMealPlan(
   budget: BudgetOption,
   customBudget?: number
 ): Promise<MealPlan> {
-  const recipes = selectWeeklyMeals(categories, diet);
+  const meals = selectWeeklyMeals(categories, diet);
+  const recipes = meals.map((m) => m.recipe);
   const shoppingList = await buildShoppingList(recipes);
   const totalCost = shoppingList.reduce((sum, item) => sum + item.price, 0);
 
   const budgetLimit = getBudgetLimit(budget, customBudget);
   if (budgetLimit && totalCost > budgetLimit) {
-    const cheaperRecipes = recipes.filter(
-      (r) => r.categories.includes("quick") || r.categories.includes("low-cal")
-    );
-    if (cheaperRecipes.length >= 3) {
+    const hasQuick = categories.includes("quick");
+    if (!hasQuick) {
       return generateMealPlan(
         [...categories, "quick" as MealCategory],
         diet,
@@ -153,12 +167,6 @@ export async function generateMealPlan(
       );
     }
   }
-
-  const meals: DayMeal[] = recipes.map((recipe, index) => ({
-    day: DAYS_OF_WEEK[index],
-    dayIndex: index,
-    recipe,
-  }));
 
   return {
     id: generateId(),
@@ -173,21 +181,6 @@ export async function generateMealPlan(
   };
 }
 
-export function swapMeal(
-  plan: MealPlan,
-  dayIndex: number,
-  newRecipe: Recipe
-): MealPlan {
-  const newMeals = plan.meals.map((m) =>
-    m.dayIndex === dayIndex ? { ...m, recipe: newRecipe } : m
-  );
-
-  return {
-    ...plan,
-    meals: newMeals,
-  };
-}
-
 export async function regenerateShoppingList(
   plan: MealPlan
 ): Promise<ShoppingItem[]> {
@@ -197,12 +190,18 @@ export async function regenerateShoppingList(
 
 export function getAlternativeRecipes(
   plan: MealPlan,
-  dayIndex: number
+  dayIndex: number,
+  mealType: MealType
 ): Recipe[] {
-  const currentId = plan.meals[dayIndex]?.recipe.id;
-  const usedIds = plan.meals.map((m) => m.recipe.id);
+  const currentMeal = plan.meals.find(
+    (m) => m.dayIndex === dayIndex && m.mealType === mealType
+  );
+  const currentId = currentMeal?.recipe.id;
+  const usedIds = plan.meals
+    .filter((m) => !(m.dayIndex === dayIndex && m.mealType === mealType))
+    .map((m) => m.recipe.id);
 
-  return filterRecipes(plan.categories, plan.diet).filter(
+  return filterRecipes(plan.categories, plan.diet, mealType).filter(
     (r) => r.id !== currentId && !usedIds.includes(r.id)
   );
 }

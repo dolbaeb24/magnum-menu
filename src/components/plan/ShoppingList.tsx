@@ -4,19 +4,12 @@ import { useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/Button";
 import { formatPrice, generateId } from "@/lib/utils";
-import {
-  ShoppingCart,
-  Check,
-  Trash2,
-  Plus,
-  ExternalLink,
-} from "lucide-react";
+import { ShoppingCart, Check, Trash2, Plus, ExternalLink } from "lucide-react";
 
 export function ShoppingList() {
   const {
     mealPlan,
     toggleShoppingItem,
-    updateShoppingItem,
     removeShoppingItem,
     addShoppingItem,
   } = useAppStore();
@@ -45,47 +38,48 @@ export function ShoppingList() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <ShoppingCart className="w-5 h-5 text-orange-500" />
-          Список покупок Magnum
+    <div className="space-y-3 w-full min-w-0">
+      <div className="flex items-start justify-between gap-2">
+        <h2 className="text-base font-bold text-gray-900 flex items-center gap-1.5 min-w-0">
+          <ShoppingCart className="w-4 h-4 text-orange-500 shrink-0" />
+          <span className="truncate">Покупки Magnum</span>
         </h2>
-        <span className="text-lg font-bold text-orange-600">
+        <span className="text-base font-bold text-orange-600 shrink-0">
           {formatPrice(totalCost)}
         </span>
       </div>
 
-      <p className="text-sm text-gray-500">
-        Отметьте продукты, которые уже есть дома. Цены из каталога Magnum Алматы.
+      <p className="text-xs text-gray-500">
+        Отметьте, что уже есть дома
       </p>
 
-      <div className="space-y-2">
+      <div className="space-y-2 w-full min-w-0">
         {activeItems.map((item) => (
           <div
             key={item.id}
-            className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100 shadow-sm group"
+            className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-gray-100 shadow-sm w-full min-w-0"
           >
             <button
               onClick={() => toggleShoppingItem(item.id)}
-              className="flex-shrink-0 w-6 h-6 rounded-lg border-2 border-gray-300 hover:border-orange-400 transition-colors flex items-center justify-center"
-            >
-            </button>
+              className="flex-shrink-0 w-11 h-11 rounded-lg border-2 border-gray-300 active:border-orange-400 flex items-center justify-center"
+              aria-label="Отметить как купленное"
+            />
 
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-900 truncate capitalize">
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <p className="font-medium text-gray-900 text-sm capitalize break-words line-clamp-2">
                 {item.magnumProduct?.name ?? item.ingredientName}
               </p>
-              <p className="text-xs text-gray-400">{item.amount}</p>
+              <p className="text-[11px] text-gray-400">{item.amount}</p>
             </div>
 
-            <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+            <span className="text-xs font-semibold text-gray-700 shrink-0">
               {item.price > 0 ? formatPrice(item.price) : "—"}
             </span>
 
             <button
               onClick={() => removeShoppingItem(item.id)}
-              className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
+              className="p-2.5 text-gray-400 active:text-red-500 shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
+              aria-label="Удалить"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -95,21 +89,21 @@ export function ShoppingList() {
 
       {checkedItems.length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm text-gray-400 font-medium">
-            ✅ Уже есть дома ({checkedItems.length})
+          <p className="text-xs text-gray-400 font-medium">
+            ✅ Есть дома ({checkedItems.length})
           </p>
           {checkedItems.map((item) => (
             <div
               key={item.id}
-              className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl opacity-60"
+              className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl opacity-60 min-w-0"
             >
               <button
                 onClick={() => toggleShoppingItem(item.id)}
-                className="flex-shrink-0 w-6 h-6 rounded-lg bg-emerald-500 text-white flex items-center justify-center"
+                className="flex-shrink-0 w-11 h-11 rounded-lg bg-emerald-500 text-white flex items-center justify-center"
               >
                 <Check className="w-4 h-4" />
               </button>
-              <p className="flex-1 line-through text-gray-500 capitalize truncate">
+              <p className="flex-1 line-through text-gray-500 text-sm capitalize break-words min-w-0">
                 {item.magnumProduct?.name ?? item.ingredientName}
               </p>
             </div>
@@ -124,19 +118,19 @@ export function ShoppingList() {
             value={newItemName}
             onChange={(e) => setNewItemName(e.target.value)}
             placeholder="Название продукта"
-            className="flex-1 px-4 py-2 border-2 border-orange-200 rounded-xl focus:outline-none focus:border-orange-400"
+            className="flex-1 min-w-0 px-3 py-3 border-2 border-orange-200 rounded-xl text-base focus:outline-none focus:border-orange-400"
             onKeyDown={(e) => e.key === "Enter" && handleAddItem()}
             autoFocus
           />
-          <Button size="sm" onClick={handleAddItem}>
-            Добавить
+          <Button size="sm" className="shrink-0 min-h-[48px]" onClick={handleAddItem}>
+            OK
           </Button>
         </div>
       ) : (
         <Button
           variant="outline"
           size="sm"
-          className="w-full"
+          className="w-full min-h-[48px]"
           onClick={() => setShowAddForm(true)}
         >
           <Plus className="w-4 h-4 mr-1" />
@@ -148,9 +142,9 @@ export function ShoppingList() {
         href="https://magnum.kz/?city=almaty"
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 text-sm text-orange-600 hover:text-orange-700 py-2"
+        className="flex items-center justify-center gap-2 text-sm text-orange-600 active:text-orange-700 py-3 min-h-[44px]"
       >
-        Открыть каталог Magnum
+        Открыть Magnum
         <ExternalLink className="w-4 h-4" />
       </a>
     </div>

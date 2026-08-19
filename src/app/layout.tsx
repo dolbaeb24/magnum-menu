@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Nunito } from "next/font/google";
 import "./globals.css";
 
@@ -8,10 +8,24 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "Что приготовить? — Планировщик меню для семьи",
+  title: "Что приготовить? — Меню для семьи",
   description:
-    "Помощник для Олеси: планирование меню на неделю для семьи из 5 человек с ценами из Magnum Алматы",
+    "Планировщик завтраков, обедов и ужинов на неделю для семьи из 5 человек с ценами Magnum Алматы",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Меню",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#f97316",
 };
 
 export default function RootLayout({
@@ -21,7 +35,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ru" className={`${nunito.variable} h-full`}>
-      <body className="min-h-full flex flex-col font-sans antialiased">
+      <body className="min-h-full flex flex-col font-sans antialiased overflow-x-hidden">
         {children}
       </body>
     </html>

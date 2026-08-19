@@ -23,7 +23,7 @@ export function GeneratingStep() {
     async function generate() {
       setIsGenerating(true);
       try {
-        setStatus("Ищем рецепты для семьи...");
+        setStatus("Подбираем завтраки, обеды и ужины...");
         await new Promise((r) => setTimeout(r, 800));
 
         setStatus("Проверяем цены в Magnum Алматы...");
