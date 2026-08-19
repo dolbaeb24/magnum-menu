@@ -57,20 +57,21 @@ function pickRecipe(
   categories: MealCategory[],
   diet: DietType,
   mealType: MealType,
-  usedIds: Set<string>
+  usedByType: Map<MealType, Set<string>>
 ): Recipe {
+  const usedIds = usedByType.get(mealType) ?? new Set<string>();
+
   const candidates = filterRecipes(categories, diet, mealType).filter(
     (r) => !usedIds.has(r.id)
   );
 
   if (candidates.length === 0) {
-    const fallback = filterRecipes([], diet, mealType).find(
-      (r) => !usedIds.has(r.id)
-    );
-    if (fallback) return fallback;
-    const any = RECIPES.find((r) => r.mealTypes.includes(mealType));
-    if (any) return any;
-    return RECIPES[0];
+    const pool = filterRecipes(categories, diet, mealType);
+    if (pool.length > 0) {
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+    const fallback = filterRecipes([], diet, mealType);
+    return fallback[0] ?? RECIPES[0];
   }
 
   const scored = candidates
@@ -87,18 +88,21 @@ export function selectWeeklyMeals(
   excludeIds: string[] = []
 ): DayMeal[] {
   const meals: DayMeal[] = [];
-  const usedIds = new Set<string>(excludeIds);
+  const usedByType = new Map<MealType, Set<string>>();
+  for (const mt of MEAL_TYPE_ORDER) {
+    usedByType.set(mt, new Set(excludeIds));
+  }
 
   for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
     for (const mealType of MEAL_TYPE_ORDER) {
-      const recipe = pickRecipe(categories, diet, mealType, usedIds);
+      const recipe = pickRecipe(categories, diet, mealType, usedByType);
       meals.push({
         day: DAYS_OF_WEEK[dayIndex],
         dayIndex,
         mealType,
         recipe,
       });
-      usedIds.add(recipe.id);
+      usedByType.get(mealType)!.add(recipe.id);
     }
   }
 

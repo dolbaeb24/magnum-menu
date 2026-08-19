@@ -6,8 +6,9 @@ import type {
   MealPlan,
   MealType,
   DayMeal,
+  Recipe,
 } from "./types";
-import { DAYS_OF_WEEK, MEAL_TYPE_LABELS } from "./types";
+import { DAYS_OF_WEEK } from "./types";
 import { RECIPES, getRecipeById } from "./recipes";
 import { buildShoppingList } from "./meal-planner";
 import { generateId } from "./utils";
@@ -18,6 +19,30 @@ interface AiSelection {
   dayIndex: number;
   mealType: MealType;
   recipeId: string;
+}
+
+function pickFallbackRecipe(
+  mealType: MealType,
+  categories: MealCategory[],
+  usedForType: Set<string>
+): Recipe {
+  const pool = RECIPES.filter((r) => {
+    if (!r.mealTypes.includes(mealType)) return false;
+    if (categories.length === 0) return true;
+    return categories.some((c) => r.categories.includes(c));
+  });
+
+  const unused = pool.filter((r) => !usedForType.has(r.id));
+  const candidates = unused.length > 0 ? unused : pool;
+
+  const scored = candidates
+    .map((r) => ({
+      recipe: r,
+      score: (r.familyFavorite ? 5 : 0) + Math.random() * 3,
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  return scored[0]?.recipe ?? RECIPES[0];
 }
 
 export async function generateMealPlanWithAI(
@@ -32,54 +57,44 @@ export async function generateMealPlanWithAI(
   try {
     const openai = new OpenAI({ apiKey });
 
-    const catalog = RECIPES.map((r) => ({
+    const catalog = RECIPES.filter(
+      (r) =>
+        diet === "none" ||
+        r.diets.includes(diet as (typeof r.diets)[number])
+    ).map((r) => ({
       id: r.id,
       name: r.name,
       categories: r.categories,
       mealTypes: r.mealTypes,
-      calories: r.calories,
       familyFavorite: r.familyFavorite ?? false,
     }));
 
     const categoryText =
-      categories.length > 0
-        ? categories.join(", ")
-        : "любые подходящие";
+      categories.length > 0 ? categories.join(", ") : "любые подходящие";
 
     const budgetText =
       budget === "none"
         ? "без ограничений"
         : budget === "custom"
-          ? `${customBudget} тенге на неделю`
-          : `${budget} тенге на неделю`;
+          ? `${customBudget} тенге`
+          : `${budget} тенге`;
 
-    const prompt = `Ты — помощник для русской семьи из 5 человек в Алматы (мама Олеся, папа Станислав, сыновья Слава и Данил, дочка Лера).
-Они живут в квартире без гриля. Подбери меню на 7 дней: завтрак, обед и ужин каждый день (21 блюдо).
+    const prompt = `Подбери меню на 7 дней для русской семьи из 5 человек в Алматы (Олеся, Станислав, Слава, Данил, Лера). Квартира, без гриля.
 
-Условия:
-- Категории: ${categoryText}
-- Диета: ${diet === "none" ? "без ограничений" : diet}
-- Бюджет: ${budgetText}
-- Используй ТОЛЬКО recipeId из каталога ниже
-- Каждый recipeId — максимум 1 раз за неделю
-- recipeId должен подходить по mealTypes (breakfast/lunch/dinner)
-- Разнообразие важнее повторов
-- Предпочитай familyFavorite где уместно
+Категории: ${categoryText}
+Диета: ${diet === "none" ? "без ограничений" : diet}
+Бюджет: ${budgetText}
 
-Каталог рецептов:
+Правила:
+- Только recipeId из каталога
+- recipeId должен подходить по mealTypes
+- Старайся не повторять, но для завтраков повтор допустим (их мало)
+- 21 элемент: 7 дней × (breakfast, lunch, dinner)
+
+Каталог:
 ${JSON.stringify(catalog)}
 
-Верни JSON:
-{
-  "selections": [
-    { "dayIndex": 0, "mealType": "breakfast", "recipeId": "syrniki" },
-    ...
-  ]
-}
-
-dayIndex: 0=Понедельник ... 6=Воскресенье
-mealType: breakfast | lunch | dinner
-Нужно ровно 21 элемент (7 дней × 3 приёма пищи).`;
+JSON: {"selections":[{"dayIndex":0,"mealType":"breakfast","recipeId":"syrniki"}, ...]}`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -87,7 +102,7 @@ mealType: breakfast | lunch | dinner
         {
           role: "system",
           content:
-            "Ты эксперт по домашней русской кухне. Отвечай только валидным JSON.",
+            "Эксперт по русской домашней кухне. Только валидный JSON, 21 selection.",
         },
         { role: "user", content: prompt },
       ],
@@ -99,40 +114,31 @@ mealType: breakfast | lunch | dinner
     if (!content) return null;
 
     const parsed = JSON.parse(content) as { selections?: AiSelection[] };
-    if (!parsed.selections?.length) return null;
+    const selections = parsed.selections ?? [];
 
     const meals: DayMeal[] = [];
-    const usedIds = new Set<string>();
+    const usedByType: Record<MealType, Set<string>> = {
+      breakfast: new Set(),
+      lunch: new Set(),
+      dinner: new Set(),
+    };
 
     for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
       for (const mealType of MEAL_TYPES) {
-        const pick = parsed.selections.find(
+        const pick = selections.find(
           (s) => s.dayIndex === dayIndex && s.mealType === mealType
         );
 
-        let recipe = pick ? getRecipeById(pick.recipeId) : undefined;
+        const used = usedByType[mealType];
 
-        if (
-          !recipe ||
-          !recipe.mealTypes.includes(mealType) ||
-          usedIds.has(recipe.id)
-        ) {
-          recipe = RECIPES.find(
-            (r) =>
-              r.mealTypes.includes(mealType) &&
-              !usedIds.has(r.id) &&
-              (categories.length === 0 ||
-                categories.some((c) => r.categories.includes(c)))
-          );
+        let recipe: Recipe = pick
+          ? getRecipeById(pick.recipeId) ??
+            pickFallbackRecipe(mealType, categories, used)
+          : pickFallbackRecipe(mealType, categories, used);
+
+        if (!recipe.mealTypes.includes(mealType) || used.has(recipe.id)) {
+          recipe = pickFallbackRecipe(mealType, categories, used);
         }
-
-        if (!recipe) {
-          recipe = RECIPES.find(
-            (r) => r.mealTypes.includes(mealType) && !usedIds.has(r.id)
-          );
-        }
-
-        if (!recipe) continue;
 
         meals.push({
           day: DAYS_OF_WEEK[dayIndex],
@@ -140,11 +146,9 @@ mealType: breakfast | lunch | dinner
           mealType,
           recipe,
         });
-        usedIds.add(recipe.id);
+        used.add(recipe.id);
       }
     }
-
-    if (meals.length < 21) return null;
 
     const shoppingList = await buildShoppingList(meals.map((m) => m.recipe));
     const totalCost = shoppingList.reduce((sum, item) => sum + item.price, 0);
@@ -164,10 +168,4 @@ mealType: breakfast | lunch | dinner
     console.error("AI meal plan error:", error);
     return null;
   }
-}
-
-export function getAiStatusLabel(): string {
-  return process.env.OPENAI_API_KEY
-    ? "ИИ подбирает блюда для семьи..."
-    : "Подбираем блюда...";
 }
